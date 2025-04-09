@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useState } from 'react';
-import { View, Text, Pressable, Image, FlatList, StyleSheet } from 'react-native';
+import { View, Text, Pressable, FlatList, StyleSheet } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { styles } from '@/styles';
 import { Movie, MovieRow } from '@/types/movie';
@@ -34,11 +35,13 @@ const ProgressiveImage = memo(({ uri, style }: { uri: string, style: any }) => {
     return (
         <View style={style}>
             {!imageLoaded && <ImagePlaceholder />}
-            <Image
+            <ExpoImage 
                 source={{ uri }}
                 style={[style, imageLoaded ? null : { opacity: 0 }]}
                 onLoad={() => setImageLoaded(true)}
-                fadeDuration={200}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
             />
         </View>
     );
@@ -107,18 +110,7 @@ export const HomeScreen = memo(({ rowTitle, movies, type }: MovieRow) => {
         </HoverableView>
     ), [router, isTop10]);
 
-    const keyExtractor = useCallback((item: Movie, index: number) => `${item.id}-${index}`, []);
-
-    // Handle which items are currently visible for better memory usage
-    const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
-        const visibleIndices = viewableItems.map((item: any) => item.index);
-        setViewableItems(visibleIndices);
-    }, []);
-
-    const viewabilityConfig = {
-        itemVisiblePercentThreshold: 50,
-        minimumViewTime: 200,
-    };
+    const keyExtractor = useCallback((item: Movie) => item.id, []);
 
     // Create a container style based on platform
     const containerStyle = [
@@ -140,18 +132,15 @@ export const HomeScreen = memo(({ rowTitle, movies, type }: MovieRow) => {
                     isTop10 && styles.top10List
                 ]}
                 ItemSeparatorComponent={ItemSeparator}
-                windowSize={2}
-                maxToRenderPerBatch={4}
-                initialNumToRender={4}
-                removeClippedSubviews={true}
+                windowSize={21}
+                maxToRenderPerBatch={movies.length}
+                initialNumToRender={movies.length}
+                removeClippedSubviews={false}
                 getItemLayout={(data, index) => ({
                     length: 110,
                     offset: 110 * index + (index * 8),
                     index,
                 })}
-                onViewableItemsChanged={onViewableItemsChanged}
-                viewabilityConfig={viewabilityConfig}
-                updateCellsBatchingPeriod={50}
             />
         </View>
     );

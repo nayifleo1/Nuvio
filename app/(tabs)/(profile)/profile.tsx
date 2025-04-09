@@ -82,10 +82,17 @@ export default function ProfileScreen() {
                 renderItem={useCallback(({ item }: { item: SavedContent }) => (
                     <TouchableOpacity 
                         style={styles.likedItemContainer}
-                        onPress={() => router.push({
-                            pathname: '/movie/[id]',
-                            params: { id: item.id }
-                        })}
+                        onPress={() => {
+                            const contentId = `tmdb:${item.tmdbId}`;
+                            router.push({
+                                pathname: '/movie/[id]',
+                                params: { 
+                                    id: contentId,
+                                    tmdbId: item.tmdbId,
+                                    mediaType: item.mediaType
+                                }
+                            });
+                        }}
                     >
                         <Image
                             source={{ uri: item.imageUrl }}
@@ -113,10 +120,17 @@ export default function ProfileScreen() {
             keyExtractor={item => item.id.toString()}
             renderItem={useCallback(({ item }: { item: SavedContent }) => (
                 <TouchableOpacity
-                    onPress={() => router.push({
-                        pathname: '/movie/[id]',
-                        params: { id: item.id }
-                    })}
+                    onPress={() => {
+                        const contentId = `tmdb:${item.tmdbId}`;
+                        router.push({
+                            pathname: '/movie/[id]',
+                            params: { 
+                                id: contentId,
+                                tmdbId: item.tmdbId,
+                                mediaType: item.mediaType
+                            }
+                        });
+                    }}
                 >
                     <Image
                         style={styles.myListImage}

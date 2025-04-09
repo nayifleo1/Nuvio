@@ -54,15 +54,10 @@ export function FeaturedContent({
                 tmdbService.getTrending('tv')
             ]);
 
-            console.log(`[FeaturedContent] Fetched ${trendingMovies.length} movies and ${trendingShows.length} shows`);
-
             // Combine and sort by popularity
             const combinedContent = [...trendingMovies, ...trendingShows]
                 .sort((a, b) => b.popularity - a.popularity)
                 .slice(0, 10); // Take top 10 most popular
-
-            console.log(`[FeaturedContent] Combined content length: ${combinedContent.length}`);
-            console.log(`[FeaturedContent] First item:`, combinedContent[0]);
 
             if (combinedContent.length > 0) {
                 setTrendingContent(combinedContent);
@@ -89,7 +84,6 @@ export function FeaturedContent({
                     categories: genres,
                     logo
                 });
-                console.log(`[FeaturedContent] Initial movie set: ${title}`);
             }
         } catch (error) {
             console.error('Failed to fetch trending content:', error);
@@ -103,7 +97,6 @@ export function FeaturedContent({
             const content = trendingContent[index];
             const isTVShow = 'media_type' in content && content.media_type === 'tv';
             const title = isTVShow ? (content as TMDBTVSearchResult).name : (content as TMDBMovieSearchResult).title;
-            console.log(`[FeaturedContent] Updating movie to: ${title}`);
             
             const thumbnail = tmdbService.getImageUrl(content.backdrop_path, 'original');
             
@@ -122,7 +115,6 @@ export function FeaturedContent({
                 categories: genres,
                 logo
             });
-            console.log(`[FeaturedContent] Movie updated successfully with thumbnail: ${thumbnail}`);
         }
     };
 
@@ -148,7 +140,6 @@ export function FeaturedContent({
             // Set up interval to cycle through content
             intervalRef.current = setInterval(() => {
                 const nextIndex = (currentIndexRef.current + 1) % trendingContent.length;
-                console.log(`[FeaturedContent] Rotating to index ${nextIndex} (current: ${currentIndexRef.current})`);
                 currentIndexRef.current = nextIndex;
                 updateCurrentMovie(nextIndex);
             }, 15000); // Rotate every 15 seconds
@@ -232,16 +223,6 @@ export function FeaturedContent({
                             {currentMovie.categories.join(' • ')}
                         </Text>
                     </Animated.View>
-
-                    {/* <View
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, marginBottom: 2 }}>
-                        <Animated.Image
-                            source={{ uri: 'https://loodibee.com/wp-content/uploads/Netflix-N-Symbol-logo.png' }}
-                            style={{ width: 20, height: 20, top: -4, position: 'absolute', left: 0 }}
-                        />
-                        {movie.type && <Text style={styles.netflixTag}>{movie.type}</Text>}
-                    </View> */}
-
 
                     <Animated.View style={[styles.featuredButtons, buttonsStyle]}>
                         <Pressable style={styles.playButton} onPress={handlePlayPress}>
