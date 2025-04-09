@@ -50,6 +50,7 @@
     "react-native-draggable-flatlist": "^4.0.2",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-image-colors": "^2.4.0",
+    "react-native-immersive-mode": "^2.0.2",
     "react-native-palette": "^1.2.2",
     "react-native-reanimated": "~3.16.1",
     "react-native-safe-area-context": "4.12.0",

@@ -1,12 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Text, Dimensions, Modal, Pressable } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Text, Dimensions, Modal, Pressable, StatusBar, Platform } from 'react-native';
 import Video from 'react-native-video';
 import { Ionicons } from '@expo/vector-icons';
 import { Slider } from 'react-native-awesome-slider';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSharedValue, runOnJS } from 'react-native-reanimated';
-// Import Gesture Handler components
-import { PinchGestureHandler, State, PinchGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+// Remove Gesture Handler imports
+// import { PinchGestureHandler, State, PinchGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+// Import for navigation bar hiding
+import { NativeModules } from 'react-native';
+// Import immersive mode package
+import RNImmersiveMode from 'react-native-immersive-mode';
 
 // Define the TrackPreferenceType for audio/text tracks
 type TrackPreferenceType = 'system' | 'disabled' | 'title' | 'language' | 'index';
@@ -57,10 +61,49 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
   const [selectedTextTrack, setSelectedTextTrack] = useState<SelectedTrack | null>({ type: 'disabled' }); // Default subtitles off
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
   const [resizeMode, setResizeMode] = useState<ResizeModeType>('contain'); // State for resize mode
+  const [showAspectRatioMenu, setShowAspectRatioMenu] = useState(false); // New state for aspect ratio menu
   const videoRef = useRef<any>(null);
   const progress = useSharedValue(0);
   const min = useSharedValue(0);
   const max = useSharedValue(duration);
+
+  // Hide navigation bar when component mounts, restore when it unmounts
+  useEffect(() => {
+    // Enable immersive mode when component mounts
+    enableImmersiveMode();
+
+    // Disable immersive mode when component unmounts
+    return () => {
+      disableImmersiveMode();
+    };
+  }, []);
+
+  // Function to enable immersive mode
+  const enableImmersiveMode = () => {
+    StatusBar.setHidden(true);
+    
+    if (Platform.OS === 'android') {
+      // Full immersive mode - hides both status and navigation bars
+      // Use setBarMode with 'FullSticky' mode to hide all bars with sticky behavior
+      RNImmersiveMode.setBarMode('FullSticky');
+      
+      // Alternative: if you want to use fullLayout method (which is in the TypeScript definition)
+      RNImmersiveMode.fullLayout(true);
+    }
+  };
+
+  // Function to disable immersive mode
+  const disableImmersiveMode = () => {
+    StatusBar.setHidden(false);
+    
+    if (Platform.OS === 'android') {
+      // Restore normal mode using setBarMode
+      RNImmersiveMode.setBarMode('Normal');
+      
+      // Alternative: disable fullLayout
+      RNImmersiveMode.fullLayout(false);
+    }
+  };
 
   useEffect(() => {
     max.value = duration;
@@ -116,6 +159,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
     setTextTracks(e.textTracks || []);
   };
 
+  // Toggle through aspect ratio modes
+  const cycleAspectRatio = () => {
+    const currentIndex = resizeModes.indexOf(resizeMode);
+    const nextIndex = (currentIndex + 1) % resizeModes.length;
+    console.log(`Changing aspect ratio from ${resizeMode} to ${resizeModes[nextIndex]}`);
+    setResizeMode(resizeModes[nextIndex]);
+  };
+
   return (
     <View style={styles.container}> 
       <TouchableOpacity
@@ -138,11 +189,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
             undefined
           }
           onAudioTracks={onAudioTracks}
-          selectedTextTrack={selectedTextTrack as any} // Ensure this prop is passed
-          onTextTracks={onTextTracks} // Ensure this prop is passed
+          selectedTextTrack={selectedTextTrack as any}
+          onTextTracks={onTextTracks}
         />
 
-        {/* Controls Overlay */} 
+        {/* Controls Overlay - still inside TouchableOpacity */}
         {showControls && (
           <View style={styles.controlsContainer}>
             {/* Top Gradient & Header */}
@@ -204,6 +255,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
                     <Text style={styles.bottomButtonText}>Speed ({playbackSpeed}x)</Text>
                   </TouchableOpacity>
 
+                  {/* Aspect Ratio Button - Added */}
+                  <TouchableOpacity style={styles.bottomButton} onPress={cycleAspectRatio}>
+                    <Ionicons name="resize" size={20} color="white" />
+                    <Text style={styles.bottomButtonText}>
+                      Aspect ({resizeMode})
+                    </Text>
+                  </TouchableOpacity>
+
                   {/* Audio Button */}
                   <TouchableOpacity 
                     style={styles.bottomButton} 
@@ -218,12 +277,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
                     </Text>
                   </TouchableOpacity>
                   
-                  {/* Lock Button */}
-                  <TouchableOpacity style={styles.bottomButton}>
-                    <Ionicons name="lock-closed" size={20} color="white" />
-                    <Text style={styles.bottomButtonText}>Lock</Text>
-                  </TouchableOpacity>
-
                   {/* Subtitle Button */}
                   <TouchableOpacity 
                     style={styles.bottomButton}
@@ -242,7 +295,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
             </LinearGradient>
           </View>
         )}
-      {/* Video TouchableOpacity ends here */}
       </TouchableOpacity> 
 
       {/* Audio Selection Modal */} 
@@ -337,7 +389,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
         </Pressable>
       </Modal>
       
-    {/* Root View container ends here */}
     </View> 
   );
 };
