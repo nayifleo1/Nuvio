@@ -174,6 +174,17 @@ function AnimatedStack() {
                             contentStyle: {
                                 backgroundColor: colors.black,
                             },
+                            presentation: Platform.OS === 'android' ? 'modal' : 'card',
+                            animation: Platform.OS === 'android' ? 'slide_from_right' : 'default',
+                            gestureEnabled: true,
+                            gestureDirection: 'horizontal',
+                            animationDuration: 200,
+                        }}
+                        listeners={{
+                            focus: () => {
+                                setIsModalActive(false);
+                                setCanBlur(false);
+                            },
                         }}
                     />
 
