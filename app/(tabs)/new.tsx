@@ -170,38 +170,56 @@ export default function NewScreen() {
         };
     });
     
-    // Gesture handler for swiping between tabs - optimized for performance
+    // Gesture handlers for swiping between tabs and scrolling content
+    
+    // Vertical scrolling gesture (native scroll behavior)
+    const scrollGesture = Gesture.Native();
+    
+    // Horizontal swipe gesture for tab switching
     const swipeGesture = Gesture.Pan()
-        .minDistance(10) // Require a minimum distance to start processing
-        .activeOffsetX([-10, 10]) // Recognize horizontal pan earlier
+        .minDistance(10) 
+        .activeOffsetX([-15, 15]) // Less strict horizontal activation
+        .failOffsetY([-20, 20]) // More permissive for vertical movement
         .onBegin(() => {
-            // Capture initial position
             translateX.value = 0;
         })
         .onUpdate((event) => {
-            // Update translation for visual feedback
-            translateX.value = event.translationX;
+            // Only update for primarily horizontal gestures
+            const horizontalMovement = Math.abs(event.translationX);
+            const verticalMovement = Math.abs(event.translationY);
+            
+            // Less strict requirement - 1.5x more horizontal than vertical
+            if (horizontalMovement > verticalMovement * 1.5) {
+                translateX.value = event.translationX;
+            }
         })
         .onEnd((event) => {
             const currentTabIndex = TAB_OPTIONS.findIndex(tab => tab.id === activeTab);
             
-            // Determine swipe direction and velocity
-            const isSignificantSwipe = Math.abs(event.translationX) > screenWidth * 0.15; // Reduced threshold
-            const hasHighVelocity = Math.abs(event.velocityX) > 300;
+            // Less strict condition
+            const horizontalMovement = Math.abs(event.translationX);
+            const verticalMovement = Math.abs(event.translationY);
             
-            if ((isSignificantSwipe || hasHighVelocity) && event.velocityX !== 0) {
-                if (event.translationX > 0 && currentTabIndex > 0) {
-                    // Swipe right -> previous tab
-                    runOnJS(onTabChange)(TAB_OPTIONS[currentTabIndex - 1].id);
-                } else if (event.translationX < 0 && currentTabIndex < TAB_OPTIONS.length - 1) {
-                    // Swipe left -> next tab
-                    runOnJS(onTabChange)(TAB_OPTIONS[currentTabIndex + 1].id);
+            // More permissive check - allow more vertical movement
+            if (horizontalMovement > verticalMovement * 1.5) {
+                // Lower threshold for tab switching
+                const isSignificantSwipe = horizontalMovement > screenWidth * 0.15;
+                const hasHighVelocity = Math.abs(event.velocityX) > 300;
+                
+                if ((isSignificantSwipe || hasHighVelocity) && event.velocityX !== 0) {
+                    if (event.translationX > 0 && currentTabIndex > 0) {
+                        runOnJS(onTabChange)(TAB_OPTIONS[currentTabIndex - 1].id);
+                    } else if (event.translationX < 0 && currentTabIndex < TAB_OPTIONS.length - 1) {
+                        runOnJS(onTabChange)(TAB_OPTIONS[currentTabIndex + 1].id);
+                    }
                 }
             }
             
-            // Reset translation
             translateX.value = withTiming(0, { duration: 150 });
         });
+    
+    // Compose gestures with both working simultaneously but with constraints
+    const composedGestures = Gesture.Simultaneous(scrollGesture, swipeGesture);
 
     // Fetch movie logos after content is loaded
     useEffect(() => {
@@ -584,7 +602,7 @@ export default function NewScreen() {
                                 <ActivityIndicator size="large" color="#E50914" />
                             </View>
                         ) : (
-                            <GestureDetector gesture={swipeGesture}>
+                            <GestureDetector gesture={composedGestures}>
                                 <Animated.ScrollView
                                     ref={contentScrollViewRef}
                                     showsVerticalScrollIndicator={false}
