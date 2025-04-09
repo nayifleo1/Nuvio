@@ -24,6 +24,12 @@ interface SelectedTrack {
 interface VideoPlayerProps {
   uri: string;
   title?: string;
+  season?: number;
+  episode?: number;
+  episodeTitle?: string;
+  quality?: string;
+  year?: number;
+  streamProvider?: string;
 }
 
 // Match the react-native-video AudioTrack type
@@ -48,7 +54,28 @@ interface TextTrack {
 type ResizeModeType = 'contain' | 'cover' | 'stretch' | 'none';
 const resizeModes: ResizeModeType[] = ['contain', 'cover', 'stretch'];
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }) => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({
+  uri,
+  title = 'Episode Name',
+  season,
+  episode,
+  episodeTitle,
+  quality,
+  year,
+  streamProvider
+}) => {
+  // Log received props for debugging
+  console.log("VideoPlayer received props:", {
+    uri,
+    title,
+    season,
+    episode,
+    episodeTitle,
+    quality,
+    year,
+    streamProvider
+  });
+
   const [paused, setPaused] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -202,7 +229,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
               style={styles.topGradient}
             >
               <View style={styles.header}>
-                <Text style={styles.title}>{title}</Text>
+                {/* Title Section - Enhanced with metadata */}
+                <View style={styles.titleSection}>
+                  <Text style={styles.title}>{title}</Text>
+                  {/* Show season and episode for series */}
+                  {season && episode && (
+                    <Text style={styles.episodeInfo}>
+                      S{season}E{episode} {episodeTitle && `• ${episodeTitle}`}
+                    </Text>
+                  )}
+                  {/* Show year, quality, and provider */}
+                  <View style={styles.metadataRow}>
+                    {year && <Text style={styles.metadataText}>{year}</Text>}
+                    {quality && <View style={styles.qualityBadge}><Text style={styles.qualityText}>{quality}</Text></View>}
+                    {streamProvider && <Text style={styles.providerText}>via {streamProvider}</Text>}
+                  </View>
+                </View>
                 <TouchableOpacity style={styles.closeButton}>
                   <Ionicons name="close" size={24} color="white" />
                 </TouchableOpacity>
@@ -409,22 +451,62 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   topGradient: {
-    paddingTop: 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20, // Adjust top padding for safe area
     paddingHorizontal: 20,
+    paddingBottom: 10, // Add some padding at the bottom of the gradient
   },
   bottomGradient: {
-    paddingBottom: 20,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20, // Adjust bottom padding for safe area
     paddingHorizontal: 20,
+    paddingTop: 10, // Add some padding at the top of the gradient
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start', // Align items to the top
+  },
+  // Styles for the title section and metadata
+  titleSection: {
+    flex: 1, // Allow title section to take available space
+    marginRight: 10, // Add margin to avoid overlap with close button
   },
   title: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+  },
+  episodeInfo: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    marginTop: 3,
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+    flexWrap: 'wrap', // Allow items to wrap if needed
+  },
+  metadataText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    marginRight: 8,
+  },
+  qualityBadge: {
+    backgroundColor: '#E50914',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  qualityText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  providerText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    fontStyle: 'italic', // Italicize provider text
   },
   closeButton: {
     padding: 8,

@@ -623,6 +623,11 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
 
     const handleSeasonChange = (season: number) => {
         setCurrentSeason(season);
+        
+        // Also update the movieData object
+        movieData.currentSeason = season;
+        
+        console.log(`Set current season to ${season}`);
     };
 
     const handleEpisodePress = (episodeNumber: number) => {
@@ -663,6 +668,13 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
         movieData.episodeImageUrl = selectedEpisode?.imageUrl || movieData.imageUrl;
         
         console.log(`Selected episode ${episodeNumber} from season ${currentSeason}, title: ${movieData.episodeTitle}, runtime: ${runtime} min${selectedEpisode?.imdbId ? `, IMDb ID: ${selectedEpisode.imdbId}` : ''}`);
+        
+        // Add additional debug log to verify movieData is updated
+        console.log("Updated movieData object:", {
+            season: movieData.currentSeason,
+            episode: movieData.currentEpisode,
+            episodeTitle: movieData.episodeTitle
+        });
         
         // Open streaming modal and fetch links for the selected episode
         setShowStreamingModal(true);
@@ -1058,11 +1070,24 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
     
     // Helper function to navigate to the built-in player
     const navigateToPlayer = (stream: Stream) => {
+        // Debug the values 
+        console.log("Navigating to player with metadata:", {
+            season: currentSeason,
+            episode: selectedEpisodeInList,
+            episodeTitle: currentEpisodeInfo.episodeTitle
+        });
+        
         router.push({
             pathname: `/player/[url]` as any,
             params: { 
                 url: encodeURIComponent(stream.url),
-                title: encodeURIComponent(movieData.title)
+                title: encodeURIComponent(movieData.title),
+                season: String(currentSeason || 1),
+                episode: String(selectedEpisodeInList || 1),
+                episodeTitle: encodeURIComponent(currentEpisodeInfo.episodeTitle || ''),
+                quality: encodeURIComponent(videoQuality || 'HD'),
+                year: encodeURIComponent(movieData.year || ''),
+                streamProvider: encodeURIComponent(stream.addonName || '')
             }
         });
     };

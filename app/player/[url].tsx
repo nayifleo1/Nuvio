@@ -6,7 +6,25 @@ import VideoPlayer from '@/components/VideoPlayer';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
 export default function PlayerScreen() {
-  const { url, title } = useLocalSearchParams<{ url: string, title?: string }>();
+  const { 
+    url, 
+    title,
+    season,
+    episode,
+    episodeTitle,
+    quality,
+    year,
+    streamProvider
+  } = useLocalSearchParams<{ 
+    url: string, 
+    title?: string,
+    season?: string,
+    episode?: string,
+    episodeTitle?: string,
+    quality?: string,
+    year?: string,
+    streamProvider?: string
+  }>();
   const router = useRouter();
   
   // Force landscape orientation when component mounts
@@ -42,6 +60,22 @@ export default function PlayerScreen() {
   // Ensure we have a valid URL
   const videoUrl = decodeURIComponent(url as string);
   const videoTitle = title ? decodeURIComponent(title as string) : 'Episode Name';
+  // Parse additional parameters
+  const parsedSeason = season ? parseInt(season as string, 10) : undefined;
+  const parsedEpisode = episode ? parseInt(episode as string, 10) : undefined;
+  const parsedEpisodeTitle = episodeTitle ? decodeURIComponent(episodeTitle as string) : undefined;
+  const parsedQuality = quality ? decodeURIComponent(quality as string) : undefined;
+  const parsedYear = year ? decodeURIComponent(year as string) : undefined;
+  const parsedStreamProvider = streamProvider ? decodeURIComponent(streamProvider as string) : undefined;
+
+  // Debug the parameters
+  console.log("Player received metadata:", {
+    rawSeason: season,
+    rawEpisode: episode,
+    parsedSeason,
+    parsedEpisode,
+    episodeTitle: parsedEpisodeTitle
+  });
 
   return (
     <>
@@ -51,7 +85,16 @@ export default function PlayerScreen() {
       }} />
       <View style={styles.container}>
         <StatusBar hidden />
-        <VideoPlayer uri={videoUrl} title={videoTitle} />
+        <VideoPlayer 
+          uri={videoUrl} 
+          title={videoTitle}
+          season={parsedSeason}
+          episode={parsedEpisode}
+          episodeTitle={parsedEpisodeTitle}
+          quality={parsedQuality}
+          year={parsedYear}
+          streamProvider={parsedStreamProvider}
+        />
       </View>
     </>
   );
