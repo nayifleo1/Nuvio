@@ -24,7 +24,7 @@ const SCALE_FACTOR = 0.83;
 const DRAG_THRESHOLD = Math.min(Dimensions.get('window').height * 0.20, 150);
 const HORIZONTAL_DRAG_THRESHOLD = Math.min(Dimensions.get('window').width * 0.51, 80);
 const DIRECTION_LOCK_ANGLE = 45; // Angle in degrees to determine horizontal vs vertical movement
-const ENABLE_HORIZONTAL_DRAG_CLOSE = true;
+const ENABLE_HORIZONTAL_DRAG_CLOSE = Platform.OS === 'ios';
 
 // Fallback movie in case content isn't found
 const FALLBACK_MOVIE = {
@@ -509,10 +509,12 @@ export default function MovieScreen() {
 
     // alert(JSON.stringify(movie))
     const handleHapticFeedback = useCallback(() => {
-        try {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        } catch (error) {
-            console.log('Haptics not available:', error);
+        if (Platform.OS === 'ios') {
+            try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            } catch (error) {
+                console.log('Haptics not available:', error);
+            }
         }
     }, []);
 
@@ -521,16 +523,8 @@ export default function MovieScreen() {
             isClosing.current = true;
             handleHapticFeedback();
             
-            // Add Android-specific exit animation
             if (Platform.OS === 'android') {
-                translateY.value = withTiming(Dimensions.get('window').height, {
-                    duration: 300
-                });
-                
-                // Wait for animation to complete before navigating back
-                setTimeout(() => {
-                    router.back();
-                }, 250);
+                router.back();
             } else {
                 // iOS behavior unchanged
                 requestAnimationFrame(() => {
@@ -538,13 +532,15 @@ export default function MovieScreen() {
                 });
             }
         }
-    }, [router, handleHapticFeedback, translateY]);
+    }, [router, handleHapticFeedback]);
 
     const handleScale = useCallback((newScale: number) => {
-        try {
-            setScale(newScale);
-        } catch (error) {
-            console.log('Scale error:', error);
+        if (Platform.OS === 'ios') {
+            try {
+                setScale(newScale);
+            } catch (error) {
+                console.log('Scale error:', error);
+            }
         }
     }, [setScale]);
 
@@ -554,140 +550,129 @@ export default function MovieScreen() {
         return angle;
     };
 
-    const panGesture = Gesture.Pan()
-        .onStart((event) => {
-            'worklet';
-            initialGestureX.value = event.x;
-            initialGestureY.value = event.y;
-            isHorizontalGesture.value = false;
+    // Define gestures only for iOS
+    const gestures = Platform.OS === 'ios' ? {
+        panGesture: Gesture.Pan()
+            .onStart((event) => {
+                'worklet';
+                initialGestureX.value = event.x;
+                initialGestureY.value = event.y;
+                isHorizontalGesture.value = false;
 
-            if (scrollOffset.value <= 0) {
-                isDragging.value = true;
-            }
-        })
-        .onUpdate((event) => {
-            'worklet';
-            const dx = event.translationX;
-            const dy = event.translationY;
-            const angle = calculateGestureAngle(dx, dy);
-
-            if (ENABLE_HORIZONTAL_DRAG_CLOSE && !isHorizontalGesture.value && !isScrolling.value) {
-                if (Math.abs(dx) > 10) {
-                    if (angle < DIRECTION_LOCK_ANGLE) {
-                        isHorizontalGesture.value = true;
-                    }
+                if (scrollOffset.value <= 0) {
+                    isDragging.value = true;
                 }
-            }
-
-            if (ENABLE_HORIZONTAL_DRAG_CLOSE && isHorizontalGesture.value) {
-                translateX.value = dx;
-                translateY.value = dy;
-                blurIntensity.value = Math.max(0, 20 - (Math.abs(dx) / 10));
-
-                if (Math.abs(dx) / 300 > 0.2) {
-                    statusBarStyle.value = 'dark';
-                } else {
-                    statusBarStyle.value = 'light';
-                }
-            }
-            else if (scrollOffset.value <= 0 && isDragging.value) {
-                translateY.value = Math.max(0, dy);
-                blurIntensity.value = Math.max(0, 20 - (dy / 20));
-
-                if (dy / 600 > 0.5) {
-                    statusBarStyle.value = 'dark';
-                } else {
-                    statusBarStyle.value = 'light';
-                }
-            }
-        })
-        .onEnd((event) => {
-            'worklet';
-            isDragging.value = false;
-
-            if (ENABLE_HORIZONTAL_DRAG_CLOSE && isHorizontalGesture.value) {
+            })
+            .onUpdate((event) => {
+                'worklet';
                 const dx = event.translationX;
                 const dy = event.translationY;
-                const totalDistance = Math.sqrt(dx * dx + dy * dy);
-                const shouldClose = totalDistance > HORIZONTAL_DRAG_THRESHOLD;
+                const angle = calculateGestureAngle(dx, dy);
 
-                if (shouldClose) {
-                    const exitX = dx * 2;
-                    const exitY = dy * 2;
-
-                    translateX.value = withTiming(exitX, { duration: 300 });
-                    translateY.value = withTiming(exitY, { duration: 300 });
-
-                    // Only change scale on iOS
-                    if (Platform.OS !== 'android') {
-                        runOnJS(handleScale)(1);
+                if (ENABLE_HORIZONTAL_DRAG_CLOSE && !isHorizontalGesture.value && !isScrolling.value) {
+                    if (Math.abs(dx) > 10) {
+                        if (angle < DIRECTION_LOCK_ANGLE) {
+                            isHorizontalGesture.value = true;
+                        }
                     }
-                    runOnJS(handleHapticFeedback)();
-                    runOnJS(goBack)();
-                } else {
-                    translateX.value = withSpring(0, {
-                        damping: 15,
-                        stiffness: 150,
-                    });
-                    translateY.value = withSpring(0, {
-                        damping: 15,
-                        stiffness: 150,
-                    });
-                    // Only change scale on iOS
-                    if (Platform.OS !== 'android') {
+                }
+
+                if (ENABLE_HORIZONTAL_DRAG_CLOSE && isHorizontalGesture.value) {
+                    translateX.value = dx;
+                    translateY.value = dy;
+                    blurIntensity.value = Math.max(0, 20 - (Math.abs(dx) / 10));
+
+                    if (Math.abs(dx) / 300 > 0.2) {
+                        statusBarStyle.value = 'dark';
+                    } else {
+                        statusBarStyle.value = 'light';
+                    }
+                }
+                else if (scrollOffset.value <= 0 && isDragging.value) {
+                    translateY.value = Math.max(0, dy);
+                    blurIntensity.value = Math.max(0, 20 - (dy / 20));
+
+                    if (dy / 600 > 0.5) {
+                        statusBarStyle.value = 'dark';
+                    } else {
+                        statusBarStyle.value = 'light';
+                    }
+                }
+            })
+            .onEnd((event) => {
+                'worklet';
+                isDragging.value = false;
+
+                if (ENABLE_HORIZONTAL_DRAG_CLOSE && isHorizontalGesture.value) {
+                    const dx = event.translationX;
+                    const dy = event.translationY;
+                    const totalDistance = Math.sqrt(dx * dx + dy * dy);
+                    const shouldClose = totalDistance > HORIZONTAL_DRAG_THRESHOLD;
+
+                    if (shouldClose) {
+                        const exitX = dx * 2;
+                        const exitY = dy * 2;
+
+                        translateX.value = withTiming(exitX, { duration: 300 });
+                        translateY.value = withTiming(exitY, { duration: 300 });
+                        runOnJS(handleScale)(1);
+                        runOnJS(handleHapticFeedback)();
+                        runOnJS(goBack)();
+                    } else {
+                        translateX.value = withSpring(0, {
+                            damping: 15,
+                            stiffness: 150,
+                        });
+                        translateY.value = withSpring(0, {
+                            damping: 15,
+                            stiffness: 150,
+                        });
                         runOnJS(handleScale)(SCALE_FACTOR);
                     }
                 }
-            }
-            else if (scrollOffset.value <= 0) {
-                const shouldClose = event.translationY > DRAG_THRESHOLD;
+                else if (scrollOffset.value <= 0) {
+                    const shouldClose = event.translationY > DRAG_THRESHOLD;
 
-                if (shouldClose) {
-                    translateY.value = withTiming(event.translationY + 100, {
-                        duration: 300,
-                    });
-                    // Only change scale on iOS
-                    if (Platform.OS !== 'android') {
+                    if (shouldClose) {
+                        translateY.value = withTiming(event.translationY + 100, {
+                            duration: 300,
+                        });
                         runOnJS(handleScale)(1);
-                    }
-                    runOnJS(handleHapticFeedback)();
-                    runOnJS(goBack)();
-                } else {
-                    translateY.value = withSpring(0, {
-                        damping: 15,
-                        stiffness: 150,
-                    });
-                    // Only change scale on iOS
-                    if (Platform.OS !== 'android') {
+                        runOnJS(handleHapticFeedback)();
+                        runOnJS(goBack)();
+                    } else {
+                        translateY.value = withSpring(0, {
+                            damping: 15,
+                            stiffness: 150,
+                        });
                         runOnJS(handleScale)(SCALE_FACTOR);
                     }
                 }
-            }
-        })
-        .onFinalize(() => {
-            'worklet';
-            isDragging.value = false;
-            isHorizontalGesture.value = false;
-        });
+            })
+            .onFinalize(() => {
+                'worklet';
+                isDragging.value = false;
+                isHorizontalGesture.value = false;
+            }),
 
-    const scrollGesture = Gesture.Native()
-        .onBegin(() => {
-            'worklet';
-            isScrolling.value = true;
-            if (!isDragging.value) {
-                translateY.value = 0;
-            }
-        })
-        .onEnd(() => {
-            'worklet';
-            isScrolling.value = false;
-        });
+        scrollGesture: Gesture.Native()
+            .onBegin(() => {
+                'worklet';
+                isScrolling.value = true;
+                if (!isDragging.value) {
+                    translateY.value = 0;
+                }
+            })
+            .onEnd(() => {
+                'worklet';
+                isScrolling.value = false;
+            })
+    } : null;
 
-    const composedGestures = Gesture.Simultaneous(panGesture, scrollGesture);
+    const composedGestures = gestures ? Gesture.Simultaneous(gestures.panGesture, gestures.scrollGesture) : undefined;
 
     // Define ScrollComponent with special Android handling
     const ScrollComponent = useCallback((props: any) => {
-        // For Android, skip gesture detector entirely to fix touch issues
         if (Platform.OS === 'android') {
             return (
                 <Animated.ScrollView
@@ -695,13 +680,11 @@ export default function MovieScreen() {
                     scrollEventThrottle={16}
                     bounces={false}
                     scrollEnabled={true}
-                    nestedScrollEnabled={true}
                     showsVerticalScrollIndicator={true}
                     contentContainerStyle={{ 
                         flexGrow: 1,
-                        minHeight: Dimensions.get('window').height
                     }}
-                    style={{ width: '100%', height: '100%' }}
+                    style={{ flex: 1 }}
                     overScrollMode="never"
                     keyboardShouldPersistTaps="handled"
                 />
@@ -709,7 +692,7 @@ export default function MovieScreen() {
         }
         
         // iOS uses the gesture system
-        return (
+        return composedGestures ? (
             <GestureDetector gesture={composedGestures}>
                 <Animated.ScrollView
                     {...props}
@@ -725,24 +708,23 @@ export default function MovieScreen() {
                     bounces={false}
                 />
             </GestureDetector>
+        ) : (
+            <Animated.ScrollView {...props} />
         );
     }, [composedGestures]);
 
     const animatedStyle = useAnimatedStyle(() => ({
-        transform: [
+        transform: Platform.OS === 'ios' ? [
             { translateY: translateY.value },
             { translateX: translateX.value }
-        ],
-        opacity: contentOpacity.value, // Replace existing opacity with loading-controlled opacity
+        ] : [],
+        opacity: contentOpacity.value,
     }));
 
     useEffect(() => {
         const timeout = setTimeout(() => {
             try {
-                // Don't scale on Android
-                if (Platform.OS === 'android') {
-                    setScale(1);
-                } else {
+                if (Platform.OS === 'ios') {
                     setScale(SCALE_FACTOR);
                 }
             } catch (error) {
@@ -753,7 +735,9 @@ export default function MovieScreen() {
         return () => {
             clearTimeout(timeout);
             try {
-                setScale(1);
+                if (Platform.OS === 'ios') {
+                    setScale(1);
+                }
             } catch (error) {
                 console.log('Cleanup scale error:', error);
             }
@@ -779,40 +763,24 @@ export default function MovieScreen() {
     }
     
     // Render movie details when loaded
+    if (Platform.OS === 'android') {
+        return (
+            <ThemedView style={styles.androidContainer}>
+                <StatusBar style="light" />
+                <ExpandedPlayer
+                    movie={movie} 
+                    scrollComponent={ScrollComponent}
+                    onClose={goBack}
+                />
+            </ThemedView>
+        );
+    }
+
+    // iOS Bottom Sheet
     return (
-        <ThemedView 
-            style={[
-                styles.container, 
-                Platform.OS === 'android' ? { 
-                    backgroundColor: '#000000',
-                    position: 'relative',
-                    width: '100%',
-                    height: '100%'
-                } : { opacity: 0.99 }
-            ]}
-            pointerEvents="box-none"
-        >
+        <ThemedView style={[styles.container, { opacity: 0.99 }]} pointerEvents="box-none">
             <StatusBar style={statusBarStyle.value === 'light' ? 'light' : 'dark'} />
-            <Animated.View 
-                style={[
-                    animatedStyle, 
-                    styles.playerContainer, 
-                    Platform.OS === 'android' ? { 
-                        position: 'absolute', 
-                        width: Dimensions.get('window').width,
-                        height: Dimensions.get('window').height,
-                        transform: [{ scale: 0.99 }], 
-                        left: 0,
-                        top: 0,
-                        right: 0,
-                        bottom: 0,
-                        elevation: 5,
-                        backgroundColor: '#000000',
-                        zIndex: 1000
-                    } : {}
-                ]}
-                pointerEvents="box-none"
-            >
+            <Animated.View style={[animatedStyle, styles.playerContainer]} pointerEvents="box-none">
                 <ExpandedPlayer
                     movie={movie} 
                     scrollComponent={ScrollComponent}
@@ -827,19 +795,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: 'transparent',
-        ...(Platform.OS === 'android' && {
-            position: 'relative',
-            width: '100%',
-            height: '100%'
-        })
+    },
+    androidContainer: {
+        flex: 1,
+        backgroundColor: '#000000',
     },
     playerContainer: {
         ...StyleSheet.absoluteFillObject,
-        ...(Platform.OS === 'android' && {
-            elevation: 1,
-            position: 'absolute',
-            zIndex: 1
-        }),
     },
     loadingContainer: {
         flex: 1,

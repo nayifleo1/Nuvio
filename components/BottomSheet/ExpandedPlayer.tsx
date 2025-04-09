@@ -1539,7 +1539,8 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
                 isAndroid && {
                     height: Dimensions.get('window').height,
                     width: Dimensions.get('window').width,
-                    backgroundColor: '#000' // Keep background for consistency
+                    // Removed background color to let parent handle it
+                    // backgroundColor: '#000'
                 }
             ]}
         >
