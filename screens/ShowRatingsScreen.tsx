@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Platform,
   StatusBar,
+  BackHandler,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { colors } from '../styles/colors';
@@ -17,6 +18,7 @@ import { RouteProp } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import axios from 'axios';
 import Animated, { FadeIn, SlideInRight, withTiming, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
 
 type RootStackParamList = {
   ShowRatings: { showId: number };
@@ -66,6 +68,7 @@ const getRatingColor = (rating: number): string => {
 
 const ShowRatingsScreen = ({ route }: Props) => {
   const { showId } = route.params;
+  const router = useRouter();
   const [show, setShow] = useState<Show | null>(null);
   const [seasons, setSeasons] = useState<TMDBSeason[]>([]);
   const [tvmazeEpisodes, setTvmazeEpisodes] = useState<TVMazeEpisode[]>([]);
@@ -331,6 +334,33 @@ const ShowRatingsScreen = ({ route }: Props) => {
     </View>
   );
 
+  // Handle hardware back button
+  useEffect(() => {
+    const backAction = () => {
+      console.log('[ShowRatings] Hardware back button pressed');
+      router.back();
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => {
+      console.log('[ShowRatings] Cleaning up back handler');
+      backHandler.remove();
+    };
+  }, [router]);
+
+  // Add cleanup on unmount
+  useEffect(() => {
+    return () => {
+      console.log('[ShowRatings] Component unmounting');
+      // Any cleanup code here
+    };
+  }, []);
+
   if (loading) {
     return (
       <Animated.View 
@@ -345,6 +375,15 @@ const ShowRatingsScreen = ({ route }: Props) => {
         <SafeAreaView style={{ flex: 1 }}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => {
+                console.log('[ShowRatings] Close button pressed');
+                router.back();
+              }}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </Animated.View>
@@ -362,6 +401,17 @@ const ShowRatingsScreen = ({ route }: Props) => {
         barStyle="light-content"
       />
       <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => {
+              console.log('[ShowRatings] Close button pressed');
+              router.back();
+            }}
+          >
+            <MaterialIcons name="close" size={20} color={colors.white} />
+          </TouchableOpacity>
+        </View>
         <ScrollView 
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
@@ -530,12 +580,13 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 8,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 8,
+    paddingTop: 0,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 20,
   },
   showInfo: {
     flexDirection: 'row',
@@ -778,6 +829,23 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 10,
     fontWeight: '600',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 8,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 4 : 8,
+    marginBottom: 0,
+  },
+  closeButton: {
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: colors.darkBackground,
+  },
+  closeButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

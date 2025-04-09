@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Nuvio",
-    "slug": "Nuvio",
+    "slug": "netflix-ui",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -59,6 +59,7 @@
       "eas": {
         "projectId": "86f4ee88-a7f3-4d8c-9dff-93089de664fb"
       }
-    }
+    },
+    "owner": "nayifleo"
   }
 }

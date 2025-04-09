@@ -77,7 +77,21 @@ function AnimatedStack() {
                 style={[styles.stackContainer, animatedStyle]}
                 pointerEvents="box-none"
             >
-                <Stack>
+                <Stack
+                    screenOptions={{
+                        headerShown: false,
+                        gestureEnabled: true,
+                        animationEnabled: true,
+                        gestureDirection: Platform.OS === 'ios' ? 'horizontal' : 'horizontal',
+                        animation: Platform.OS === 'android' ? 'slide_from_right' : 'default',
+                        onTransitionStart: () => {
+                            console.log('[Navigation] Screen transition started');
+                        },
+                        onTransitionEnd: () => {
+                            console.log('[Navigation] Screen transition ended');
+                        },
+                    }}
+                >
                     <Stack.Screen name="(tabs)" options={{headerShown: false}}/>
                     <Stack.Screen
                         name="movie/[id]"
@@ -88,15 +102,28 @@ function AnimatedStack() {
                                 backgroundColor: 'transparent',
                             },
                             animation: Platform.OS === 'android' ? 'slide_from_bottom' : 'default',
+                            gestureEnabled: true,
+                            gestureDirection: 'vertical',
                         }}
                         listeners={{
                             focus: () => {
+                                console.log('[Navigation] Movie screen focused');
                                 setIsModalActive(true);
                                 setCanBlur(true);
                             },
                             beforeRemove: () => {
+                                console.log('[Navigation] Movie screen will be removed');
                                 setIsModalActive(false);
                                 setCanBlur(false);
+                            },
+                            gestureStart: () => {
+                                console.log('[Gesture] Back gesture started on movie screen');
+                            },
+                            gestureEnd: () => {
+                                console.log('[Gesture] Back gesture ended on movie screen');
+                            },
+                            gestureCancel: () => {
+                                console.log('[Gesture] Back gesture cancelled on movie screen');
                             },
                         }}
                     />
@@ -109,13 +136,17 @@ function AnimatedStack() {
                                 backgroundColor: 'transparent',
                             },
                             animation: Platform.OS === 'android' ? 'slide_from_bottom' : 'default',
+                            gestureEnabled: true,
+                            gestureDirection: 'vertical',
                         }}
                         listeners={{
                             focus: () => {
+                                console.log('[Navigation] Profile switch screen focused');
                                 setIsModalActive(true);
                                 setCanBlur(false);
                             },
                             beforeRemove: () => {
+                                console.log('[Navigation] Profile switch screen will be removed');
                                 setIsModalActive(false);
                                 setCanBlur(false);
                             },
@@ -124,27 +155,41 @@ function AnimatedStack() {
                     <Stack.Screen
                         name="search"
                         options={{
-                            // presentation: 'card',
-                            // animation: 'none',
                             headerShown: false,
                             contentStyle: {
                                 backgroundColor: 'transparent',
                             },
+                            gestureEnabled: true,
+                            gestureDirection: 'horizontal',
                         }}
-
+                        listeners={{
+                            focus: () => {
+                                console.log('[Navigation] Search screen focused');
+                            },
+                            beforeRemove: () => {
+                                console.log('[Navigation] Search screen will be removed');
+                            },
+                        }}
                     />
 
                     <Stack.Screen
                         name="downloads"
                         options={{
-                            // presentation: 'card',
-                            // animation: 'none',
                             headerShown: false,
                             contentStyle: {
                                 backgroundColor: 'transparent',
                             },
+                            gestureEnabled: true,
+                            gestureDirection: 'horizontal',
                         }}
-
+                        listeners={{
+                            focus: () => {
+                                console.log('[Navigation] Downloads screen focused');
+                            },
+                            beforeRemove: () => {
+                                console.log('[Navigation] Downloads screen will be removed');
+                            },
+                        }}
                     />
 
                     <Stack.Screen
@@ -153,6 +198,16 @@ function AnimatedStack() {
                             headerShown: false,
                             contentStyle: {
                                 backgroundColor: 'transparent',
+                            },
+                            gestureEnabled: true,
+                            gestureDirection: 'horizontal',
+                        }}
+                        listeners={{
+                            focus: () => {
+                                console.log('[Navigation] Addons screen focused');
+                            },
+                            beforeRemove: () => {
+                                console.log('[Navigation] Addons screen will be removed');
                             },
                         }}
                     />
@@ -163,6 +218,16 @@ function AnimatedStack() {
                             headerShown: false,
                             contentStyle: {
                                 backgroundColor: 'transparent',
+                            },
+                            gestureEnabled: true,
+                            gestureDirection: 'horizontal',
+                        }}
+                        listeners={{
+                            focus: () => {
+                                console.log('[Navigation] Player settings screen focused');
+                            },
+                            beforeRemove: () => {
+                                console.log('[Navigation] Player settings screen will be removed');
                             },
                         }}
                     />
@@ -175,19 +240,30 @@ function AnimatedStack() {
                                 backgroundColor: colors.black,
                             },
                             presentation: 'modal',
-                            animation: Platform.OS === 'android' ? 'slide_from_right' : 'default',
+                            animation: 'slide_from_bottom',
                             gestureEnabled: true,
-                            gestureDirection: Platform.OS === 'ios' ? 'vertical' : 'horizontal',
+                            gestureDirection: 'vertical',
                             animationDuration: 200,
                         }}
                         listeners={{
                             focus: () => {
+                                console.log('[Navigation] Show ratings screen focused');
                                 setIsModalActive(true);
                                 setCanBlur(true);
                             },
                             beforeRemove: () => {
+                                console.log('[Navigation] Show ratings screen will be removed');
                                 setIsModalActive(false);
                                 setCanBlur(false);
+                            },
+                            gestureStart: () => {
+                                console.log('[Gesture] Back gesture started on ratings screen');
+                            },
+                            gestureEnd: () => {
+                                console.log('[Gesture] Back gesture ended on ratings screen');
+                            },
+                            gestureCancel: () => {
+                                console.log('[Gesture] Back gesture cancelled on ratings screen');
                             },
                         }}
                     />
