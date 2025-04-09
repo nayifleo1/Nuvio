@@ -57,6 +57,7 @@ export default function MovieScreen() {
     const colorScheme = useColorScheme();
     const blurIntensity = useSharedValue(20);
     const contentOpacity = useSharedValue(0); // Add shared value for content opacity
+    const [isReady, setIsReady] = useState(false);
 
     const [movie, setMovie] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -727,10 +728,11 @@ export default function MovieScreen() {
                 if (Platform.OS === 'ios') {
                     setScale(SCALE_FACTOR);
                 }
+                setIsReady(true);
             } catch (error) {
                 console.log('Initial scale error:', error);
             }
-        }, 0);
+        }, 100);
 
         return () => {
             clearTimeout(timeout);
@@ -744,8 +746,18 @@ export default function MovieScreen() {
         };
     }, [setScale]);
 
+    useEffect(() => {
+        if (!isLoading && isReady) {
+            contentOpacity.value = withTiming(1, {
+                duration: 150
+            });
+        } else {
+            contentOpacity.value = 0;
+        }
+    }, [isLoading, isReady, contentOpacity]);
+
     // Show loading indicator
-    if (isLoading) {
+    if (isLoading || !isReady) {
         return (
             <ThemedView style={styles.loadingContainer}>
                 <StatusBar style="light" />

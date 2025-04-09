@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, Text, Image, Pressable, Dimensions, ScrollView, FlatList, TouchableOpacity, Modal, Platform, ActivityIndicator, BackHandler, Linking } from 'react-native';
+import { View, StyleSheet, Text, Image, Pressable, Dimensions, ScrollView, FlatList, TouchableOpacity, Modal, Platform, ActivityIndicator, BackHandler, Linking, ViewStyle, ImageStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StatusBar as NativeStatusBar } from 'react-native';
@@ -18,6 +18,7 @@ import { Image as ExpoImage } from 'expo-image';
 import tmdbService from '@/services/tmdbService';
 import stremioService from '@/services/stremioService';
 import { useUser } from '@/contexts/UserContext';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 interface MovieData {
     id: string | number;
@@ -323,6 +324,8 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
     const isAndroid = Platform.OS === 'android';
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const [orientation, setOrientation] = useState<'PORTRAIT' | 'LANDSCAPE'>('PORTRAIT');
+    const window = Dimensions.get('window');
     const videoRef = useRef<Video | null>(null); // Keep videoRef if needed elsewhere, otherwise remove
     const [isMuted, setIsMuted] = useState(true);
     const progress = useSharedValue(0);
@@ -358,28 +361,87 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
     
     const [videoQuality, setVideoQuality] = useState<string>('VISION');
     
-    // Configure the scroll component
+    // Handle orientation changes
+    useEffect(() => {
+        const subscription = Dimensions.addEventListener('change', ({ window }) => {
+            const isLandscape = window.width > window.height;
+            setOrientation(isLandscape ? 'LANDSCAPE' : 'PORTRAIT');
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, []);
+
+    // Handle orientation locking/unlocking
+    React.useLayoutEffect(() => {
+        const unlockOrientation = async () => {
+            try {
+                // Allow both portrait and landscape orientations
+                await ScreenOrientation.unlockAsync();
+            } catch (error) {
+                console.error('Failed to unlock orientation:', error);
+            }
+        };
+        
+        unlockOrientation();
+
+        return () => {
+            // Lock back to portrait when unmounting
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
+                .catch(error => console.error('Failed to lock orientation:', error));
+        };
+    }, []);
+
+    // Calculate dynamic styles based on orientation
+    const dynamicStyles = React.useMemo(() => StyleSheet.create({
+        rootContainer: {
+            ...StyleSheet.flatten(styles.rootContainer),
+            height: window.height,
+            width: window.width,
+        },
+        videoContainer: {
+            ...StyleSheet.flatten(styles.videoContainer),
+            height: orientation === 'LANDSCAPE' ? window.width * (9/16) : 250,
+            width: window.width,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#000',
+        },
+        video: {
+            width: window.width,
+            height: orientation === 'LANDSCAPE' ? window.width * (9/16) : window.width * (9/16),
+            backgroundColor: '#000',
+        },
+        contentContainer: {
+            ...StyleSheet.flatten(styles.contentContainer),
+            paddingTop: orientation === 'LANDSCAPE' ? 0 : 16,
+            display: orientation === 'LANDSCAPE' ? 'none' : 'flex',
+        },
+    }), [orientation, window.height, window.width]);
+
+    // Configure the scroll component with orientation awareness
     const ScrollComponentToUse = React.useMemo(() => {
         const Component = scrollComponent;
         return (props: any) => (
             <Component
                 {...props}
                 pointerEvents={isAndroid ? "auto" : "box-none"}
-                scrollEnabled={true}
+                scrollEnabled={orientation === 'PORTRAIT'}
                 nestedScrollEnabled={true}
-                showsVerticalScrollIndicator={true}
+                showsVerticalScrollIndicator={orientation === 'PORTRAIT'}
                 contentInsetAdjustmentBehavior="automatic"
                 style={[
                     props.style, 
                     styles.scrollView,
                     isAndroid && { 
-                        height: Dimensions.get('window').height,
+                        height: window.height,
                         backgroundColor: '#000000'
                     }
                 ]}
             />
         );
-    }, [scrollComponent, isAndroid]);
+    }, [scrollComponent, isAndroid, orientation, window.height]);
 
     const defaultMovieData = {
         ...movie,
@@ -1533,17 +1595,7 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
     };
 
     return (
-        <View
-            style={[
-                styles.rootContainer,
-                isAndroid && {
-                    height: Dimensions.get('window').height,
-                    width: Dimensions.get('window').width,
-                    // Removed background color to let parent handle it
-                    // backgroundColor: '#000'
-                }
-            ]}
-        >
+        <View style={dynamicStyles.rootContainer}>
             {/* REMOVED the manual Status Bar component from here, assuming parent manages it */}
             {/* <StatusBar style="light" /> */}
             {isAndroid && (
@@ -1562,50 +1614,46 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
             )}
 
             <ScrollComponentToUse
-                contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+                contentContainerStyle={{ 
+                    paddingBottom: orientation === 'PORTRAIT' ? insets.bottom + 40 : 0 
+                }}
                 keyboardShouldPersistTaps="handled"
                 overScrollMode={isAndroid ? "never" : undefined}
             >
-                <View style={styles.videoContainer}>
-                    {trailerKey ? (
-                        <WebView
-                            style={[
-                                styles.video,
-                                Platform.OS === 'android' && {
-                                    width: Dimensions.get('window').width,
-                                    height: 300
-                                }
-                            ]}
-                            javaScriptEnabled={true}
-                            domStorageEnabled={true}
-                            allowsInlineMediaPlayback={true}
-                            mediaPlaybackRequiresUserAction={false}
-                            source={{ uri: `https://www.youtube.com/embed/${trailerKey}?autoplay=1&playsinline=1&modestbranding=1&showinfo=0&rel=0` }}
-                            onError={(syntheticEvent) => {
-                                const { nativeEvent } = syntheticEvent;
-                                console.warn('WebView error: ', nativeEvent);
-                            }}
-                        />
-                    ) : (
-                        // Fallback: Show poster image if no trailer key
-                        <ExpoImage
-                            source={{ uri: movieData.imageUrl }}
-                            style={[
-                                styles.video,
-                                Platform.OS === 'android' && {
-                                    width: Dimensions.get('window').width,
-                                    height: 300
-                                }
-                            ]}
-                            contentFit="cover"
-                        />
+                <View style={dynamicStyles.videoContainer}>
+                    {orientation !== 'LANDSCAPE' && (
+                        <View style={{ 
+                            width: window.width,
+                            height: window.width * (9/16),
+                            backgroundColor: '#000',
+                        }}>
+                            {trailerKey ? (
+                                <WebView
+                                    style={dynamicStyles.video}
+                                    javaScriptEnabled={true}
+                                    domStorageEnabled={true}
+                                    allowsInlineMediaPlayback={true}
+                                    mediaPlaybackRequiresUserAction={false}
+                                    source={{ uri: `https://www.youtube.com/embed/${trailerKey}?autoplay=1&playsinline=1&modestbranding=1&showinfo=0&rel=0` }}
+                                    onError={(syntheticEvent) => {
+                                        const { nativeEvent } = syntheticEvent;
+                                        console.warn('WebView error: ', nativeEvent);
+                                    }}
+                                />
+                            ) : (
+                                <ExpoImage
+                                    source={{ uri: movieData.imageUrl }}
+                                    style={dynamicStyles.video}
+                                    contentFit="cover"
+                                />
+                            )}
+                        </View>
                     )}
                     
-                    {/* Keep the video overlay with the X button hidden on Android */}
-                    <View style={styles.videoOverlay}>
+                    <View style={[styles.videoOverlay, { position: 'absolute', top: 0, width: '100%' }]}>
                         <Pressable
                             style={styles.closeButton}
-                            onPress={handleClose} // Use simplified handler
+                            onPress={handleClose}
                             android_ripple={{ color: '#ffffff33', borderless: true }}
                             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                             accessibilityRole="button"
@@ -1616,7 +1664,8 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
                     </View>
                 </View>
 
-                <View style={styles.contentContainer}>
+                {/* Content container only shown in portrait mode */}
+                <View style={dynamicStyles.contentContainer}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: -4, marginBottom: 8 }}>
                         <ExpoImage
                             source={{ uri: 'https://loodibee.com/wp-content/uploads/Netflix-N-Symbol-logo.png' }}
