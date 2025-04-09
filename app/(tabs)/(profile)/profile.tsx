@@ -80,13 +80,19 @@ export default function ProfileScreen() {
                 data={likedContent}
                 keyExtractor={item => item.id.toString()}
                 renderItem={useCallback(({ item }: { item: SavedContent }) => (
-                    <View style={styles.likedItemContainer}>
+                    <TouchableOpacity 
+                        style={styles.likedItemContainer}
+                        onPress={() => router.push({
+                            pathname: '/movie/[id]',
+                            params: { id: item.id }
+                        })}
+                    >
                         <Image
                             source={{ uri: item.imageUrl }}
                             style={styles.likedShowImage}
                         />
-                    </View>
-                ), [])}
+                    </TouchableOpacity>
+                ), [router])}
                 showsHorizontalScrollIndicator={false}
                 maxToRenderPerBatch={5}
                 windowSize={3}
@@ -106,11 +112,18 @@ export default function ProfileScreen() {
             data={myList}
             keyExtractor={item => item.id.toString()}
             renderItem={useCallback(({ item }: { item: SavedContent }) => (
-                <Image
-                    style={styles.myListImage}
-                    source={{ uri: item.imageUrl }}
-                />
-            ), [])}
+                <TouchableOpacity
+                    onPress={() => router.push({
+                        pathname: '/movie/[id]',
+                        params: { id: item.id }
+                    })}
+                >
+                    <Image
+                        style={styles.myListImage}
+                        source={{ uri: item.imageUrl }}
+                    />
+                </TouchableOpacity>
+            ), [router])}
             showsHorizontalScrollIndicator={false}
             style={styles.myList}
             maxToRenderPerBatch={5}
