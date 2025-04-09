@@ -1,11 +1,11 @@
-import React, { memo } from 'react';
-import { View, Text, Pressable, FlatList } from 'react-native';
+import React, { memo, useCallback, useState } from 'react';
+import { View, Text, Pressable, Image, FlatList, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { styles } from '@/styles';
 import { Movie, MovieRow } from '@/types/movie';
+import Svg, { Path } from 'react-native-svg';
 import { useVisionOS } from '@/hooks/useVisionOS';
 import { HoverableView } from '@/components/ui/VisionContainer';
-import { Image as ExpoImage } from 'expo-image';
 
 const NumberBackground = memo(({ number }: { number: number }) => {
     const num = (number).toString().padStart(2, '0');
@@ -22,49 +22,81 @@ const NumberBackground = memo(({ number }: { number: number }) => {
     );
 });
 
+// Custom placeholder component for better performance
+const ImagePlaceholder = memo(() => (
+    <View style={posterStyles.placeholder} />
+));
+
+// Progressive image component
+const ProgressiveImage = memo(({ uri, style }: { uri: string, style: any }) => {
+    const [imageLoaded, setImageLoaded] = useState(false);
+
+    return (
+        <View style={style}>
+            {!imageLoaded && <ImagePlaceholder />}
+            <Image
+                source={{ uri }}
+                style={[style, imageLoaded ? null : { opacity: 0 }]}
+                onLoad={() => setImageLoaded(true)}
+                fadeDuration={200}
+            />
+        </View>
+    );
+});
+
 const MovieItem = memo(({ item, router, index, isTop10 }: {
     item: Movie;
     router: any;
     index: number;
     isTop10: boolean;
-}) => (
-    <Pressable
-        onPress={() => router.push({
+}) => {
+    const handlePress = useCallback(() => {
+        router.push({
             pathname: '/movie/[id]',
             params: { id: item.id }
-        })}
-        style={[
-            styles.contentItem,
-            isTop10 && styles.top10Item,
-            { marginHorizontal: 1 }
-        ]}
-    >
-        {isTop10 && <NumberBackground number={index + 1} />}
-        <ExpoImage
-            source={{ uri: item.imageUrl }}
-            style={[
-                styles.thumbnail,
-                isTop10 && styles.top10Thumbnail
-            ]}
-            cachePolicy="memory-disk"
-            contentFit="cover"
-            transition={200}
-        />
-    </Pressable>
-));
+        });
+    }, [router, item.id]);
 
-const getItemLayout = (_: any, index: number) => ({
-    length: 160, // Adjust this value based on your item width
-    offset: 160 * index,
-    index,
+    return (
+        <Pressable
+            onPress={handlePress}
+            style={[
+                styles.contentItem,
+                isTop10 && styles.top10Item,
+                { marginHorizontal: 1 }
+            ]}
+        >
+            {isTop10 && <NumberBackground number={index + 1} />}
+            <ProgressiveImage
+                uri={item.imageUrl}
+                style={[
+                    styles.thumbnail,
+                    isTop10 && styles.top10Thumbnail
+                ]}
+            />
+        </Pressable>
+    );
+});
+
+const ItemSeparator = memo(() => <View style={{ width: 8 }} />);
+
+// Custom styles for placeholders
+const posterStyles = StyleSheet.create({
+    placeholder: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#1a1a1a',
+        borderRadius: 6,
+    }
 });
 
 export const HomeScreen = memo(({ rowTitle, movies, type }: MovieRow) => {
     const router = useRouter();
     const isTop10 = type === 'top_10';
     const { isVisionOS } = useVisionOS();
+    const [viewableItems, setViewableItems] = useState<number[]>([]);
 
-    const renderItem = ({ item, index }: { item: Movie; index: number }) => (
+    const renderItem = useCallback(({ item, index }: { item: Movie; index: number }) => (
         <HoverableView style={{}}>
             <MovieItem
                 item={item}
@@ -73,8 +105,22 @@ export const HomeScreen = memo(({ rowTitle, movies, type }: MovieRow) => {
                 isTop10={isTop10}
             />
         </HoverableView>
-    );
+    ), [router, isTop10]);
 
+    const keyExtractor = useCallback((item: Movie, index: number) => `${item.id}-${index}`, []);
+
+    // Handle which items are currently visible for better memory usage
+    const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
+        const visibleIndices = viewableItems.map((item: any) => item.index);
+        setViewableItems(visibleIndices);
+    }, []);
+
+    const viewabilityConfig = {
+        itemVisiblePercentThreshold: 50,
+        minimumViewTime: 200,
+    };
+
+    // Create a container style based on platform
     const containerStyle = [
         styles.container,
         { marginBottom: 5 }
@@ -87,18 +133,25 @@ export const HomeScreen = memo(({ rowTitle, movies, type }: MovieRow) => {
                 horizontal
                 data={movies}
                 renderItem={renderItem}
-                keyExtractor={(item) => item.id}
+                keyExtractor={keyExtractor}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={[
                     styles.contentList,
                     isTop10 && styles.top10List
                 ]}
-                ItemSeparatorComponent={() => <View style={{ width: 8 }} />}
-                getItemLayout={getItemLayout}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={6}
-                windowSize={5}
+                ItemSeparatorComponent={ItemSeparator}
+                windowSize={2}
+                maxToRenderPerBatch={4}
                 initialNumToRender={4}
+                removeClippedSubviews={true}
+                getItemLayout={(data, index) => ({
+                    length: 110,
+                    offset: 110 * index + (index * 8),
+                    index,
+                })}
+                onViewableItemsChanged={onViewableItemsChanged}
+                viewabilityConfig={viewabilityConfig}
+                updateCellsBatchingPeriod={50}
             />
         </View>
     );

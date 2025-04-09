@@ -1,10 +1,9 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Dimensions, ActivityIndicator, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { View, Dimensions, ActivityIndicator, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, NativeScrollEvent, NativeSyntheticEvent, Animated as RNAnimated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
-  useAnimatedScrollHandler,
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
@@ -81,6 +80,15 @@ interface TempFeaturedContentProps {
   topMargin: number;
 }
 
+// Memoized empty state component
+const EmptyState = React.memo(() => (
+  <View style={localStyles.emptyState}>
+    <Text style={localStyles.emptyStateText}>
+      No content available. Enable catalogs in the Addons tab.
+    </Text>
+  </View>
+));
+
 export default function Page() {
   const insets = useSafeAreaInsets();
   const { tiltX, tiltY } = useDeviceMotion();
@@ -88,10 +96,19 @@ export default function Page() {
   const [featuredMovie, setFeaturedMovie] = useState<FeaturedMovie>(FALLBACK_FEATURED_MOVIE);
   const [isLoading, setIsLoading] = useState(true);
   const [movieRows, setMovieRows] = useState<MovieRow[]>([]);
-  const scrollViewRef = useRef<Animated.ScrollView>(null);
+  const [visibleRowCount, setVisibleRowCount] = useState(3); // Initially render only first 3 rows
+  
+  // Lazy load additional rows as user scrolls
+  const loadMoreRows = useCallback(() => {
+    if (visibleRowCount < movieRows.length) {
+      // Add 2 more rows at a time
+      setVisibleRowCount(prev => Math.min(prev + 2, movieRows.length));
+    }
+  }, [visibleRowCount, movieRows.length]);
 
   // Fetch featured content from Cinemeta
   useEffect(() => {
+    let isMounted = true;
     const fetchFeaturedContent = async () => {
       setIsLoading(true);
       try {
@@ -102,7 +119,7 @@ export default function Page() {
         // Fetch the content details from Cinemeta
         const content = await catalogService.getContentDetails(type, id);
         
-        if (content) {
+        if (content && isMounted) {
           // Convert StreamingContent to FeaturedMovie
           const movie: FeaturedMovie = {
             id: content.id,
@@ -117,66 +134,96 @@ export default function Page() {
       } catch (error) {
         console.error('Failed to fetch featured content:', error);
         // Use fallback on error
-        setFeaturedMovie(FALLBACK_FEATURED_MOVIE);
+        if (isMounted) {
+          setFeaturedMovie(FALLBACK_FEATURED_MOVIE);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchFeaturedContent();
+    return () => { isMounted = false; };
   }, []);
 
   // Fetch movie catalogs for home screen
-  const fetchCatalogData = useCallback(async () => {
+  const fetchCatalogData = useCallback(() => {
+    let isMounted = true;
     console.log('Fetching catalog data...');
-    try {
-      // Get catalogs from Cinemeta or other addons
-      const catalogs = await catalogService.getHomeCatalogs();
-      
-      if (catalogs && catalogs.length > 0) {
-        // Convert catalogs to movie rows for our UI
-        const rows: MovieRow[] = catalogs
-          .filter(catalog => 
-            // Make sure catalog has items
-            catalog.items && 
-            catalog.items.length > 0 &&
-            // Make sure items have poster images
-            catalog.items.some(item => item.poster)
-          )
-          .map(catalog => {
-            // Filter out items without posters
-            const validItems = catalog.items
-              .filter(item => item.poster)
-              .map(convertToMovie);
-            
-            // Only include rows with enough items to display
-            if (validItems.length < 3) return null;
-            
-            return {
-              rowTitle: catalog.name,
-              movies: validItems.slice(0, 20), // Limit to 20 items per row
-              type: catalog.id.includes('top') ? 'top_10' : 'normal'
-            };
-          })
-          .filter(Boolean) as MovieRow[]; // Filter out null rows
+    
+    const fetchData = async () => {
+      try {
+        // Get catalogs from Cinemeta or other addons
+        const catalogs = await catalogService.getHomeCatalogs();
         
-        // Show all rows instead of limiting to 8
-        setMovieRows(rows);
-      } else {
-        console.warn('No catalogs returned or enabled');
-        setMovieRows([]);
+        if (catalogs && catalogs.length > 0 && isMounted) {
+          // Batch process to avoid UI jank
+          const processCatalogs = () => {
+            // Convert catalogs to movie rows for our UI
+            const rows: MovieRow[] = catalogs
+              .filter(catalog => 
+                // Make sure catalog has items
+                catalog.items && 
+                catalog.items.length > 0 &&
+                // Make sure items have poster images
+                catalog.items.some(item => item.poster)
+              )
+              .map(catalog => {
+                // Filter out items without posters
+                const validItems = catalog.items
+                  .filter(item => item.poster)
+                  .map(convertToMovie);
+                
+                // Only include rows with enough items to display
+                if (validItems.length < 3) return null;
+                
+                return {
+                  rowTitle: catalog.name,
+                  // Limit to 10 items per row initially for better performance
+                  movies: validItems.slice(0, 10),
+                  type: catalog.id.includes('top') ? 'top_10' : 'normal'
+                };
+              })
+              .filter(Boolean) as MovieRow[]; // Filter out null rows
+            
+            if (isMounted) {
+              // Show all rows
+              setMovieRows(rows);
+              // Reset visible rows to initial count when data changes
+              setVisibleRowCount(3);
+            }
+          };
+          
+          // Use requestAnimationFrame to process data off the main thread
+          requestAnimationFrame(processCatalogs);
+        } else if (isMounted) {
+          console.warn('No catalogs returned or enabled');
+          setMovieRows([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch catalog data:', error);
+        // Set empty rows on error
+        if (isMounted) {
+          setMovieRows([]);
+        }
       }
-    } catch (error) {
-      console.error('Failed to fetch catalog data:', error);
-      // Set empty rows on error
-      setMovieRows([]);
-    }
+    };
+    
+    // Start the fetch process
+    fetchData();
+    
+    // Return cleanup function
+    return () => { 
+      isMounted = false; 
+    };
   }, []);
 
   // Listen for catalog preferences changes and addon changes
   useEffect(() => {
     // Initial fetch
-    fetchCatalogData();
+    const cleanupFn = fetchCatalogData();
     
     // Subscribe to catalog preference changes
     const unsubscribeCatalogPrefs = stremioService.addCatalogPrefsListener(() => {
@@ -192,37 +239,65 @@ export default function Page() {
     
     // Cleanup subscriptions on unmount
     return () => {
+      cleanupFn();
       unsubscribeCatalogPrefs();
       unsubscribeAddonChanges();
     };
   }, [fetchCatalogData]);
 
+  // Scroll animation values
   const SCROLL_THRESHOLD = 4;
-  const SLIDE_ACTIVATION_POINT = 90; // Point at which sliding can start
+  const SLIDE_ACTIVATION_POINT = 90;
   const scrollY = useSharedValue(0);
   const lastScrollY = useSharedValue(0);
   const scrollDirection = useSharedValue(0);
+  
+  // For native animated
+  const nativeScrollY = useRef(new RNAnimated.Value(0)).current;
+  
+  // Track scroll position for lazy loading more content
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Check if user has scrolled far enough to load more rows
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const contentHeight = event.nativeEvent.contentSize.height;
+    const scrollViewHeight = event.nativeEvent.layoutMeasurement.height;
+    
+    // Load more when user scrolls past 70% of current content
+    if (offsetY > (contentHeight - scrollViewHeight) * 0.7) {
+      loadMoreRows();
+    }
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      const currentScrollY = event.contentOffset.y;
-      const scrollDelta = currentScrollY - lastScrollY.value;
-
-      if (currentScrollY >= SLIDE_ACTIVATION_POINT) {
-        if (scrollDelta > SCROLL_THRESHOLD) {
-          scrollDirection.value = withTiming(1, { duration: 400 });
-        } else if (scrollDelta < -SCROLL_THRESHOLD) {
-          scrollDirection.value = withTiming(0, { duration: 400 });
-        }
-      } else {
+    // Handle animation logic for Reanimated
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const prevScrollY = lastScrollY.value;
+    const scrollDelta = currentScrollY - prevScrollY;
+    
+    // Update shared values for animations
+    lastScrollY.value = currentScrollY;
+    scrollY.value = currentScrollY;
+    
+    // Handle header animation logic
+    if (currentScrollY >= SLIDE_ACTIVATION_POINT) {
+      if (scrollDelta > SCROLL_THRESHOLD) {
+        scrollDirection.value = withTiming(1, { duration: 400 });
+      } else if (scrollDelta < -SCROLL_THRESHOLD) {
         scrollDirection.value = withTiming(0, { duration: 400 });
       }
+    } else {
+      scrollDirection.value = withTiming(0, { duration: 400 });
+    }
+  }, [loadMoreRows, lastScrollY, scrollY, scrollDirection, SLIDE_ACTIVATION_POINT, SCROLL_THRESHOLD]);
 
-      lastScrollY.value = currentScrollY;
-      scrollY.value = currentScrollY;
-    },
-  });
+  // Create scroll event handler using React Native's Animated, not Reanimated
+  const scrollEventHandler = RNAnimated.event(
+    [{ nativeEvent: { contentOffset: { y: nativeScrollY } } }],
+    { 
+      useNativeDriver: true,
+      listener: handleScroll 
+    }
+  );
 
+  // Memoize animated values
   const headerAnimatedProps = useAnimatedProps(() => {
     return {
       intensity: interpolate(
@@ -256,10 +331,34 @@ export default function Page() {
     ],
   }));
 
+  const scrollViewRef = useRef(null);
+  
+  // Memoize the FeaturedContent props to prevent unnecessary re-renders
+  const featuredContentProps = useMemo(() => ({
+    movie: featuredMovie,
+    imageStyle,
+    categoriesStyle,
+    buttonsStyle,
+    topMargin: insets.top + 90
+  }), [featuredMovie, imageStyle, categoriesStyle, buttonsStyle, insets.top]);
+
+  // Memoize gradient colors and locations - moved before conditional rendering
+  const gradientColors = useMemo(() => 
+    ['#202036', '#11111d', '#07070c'] as const, 
+  []);
+  const gradientLocations = useMemo(() => 
+    [0, 0.4, 0.8] as const, 
+  []);
+
+  // Container style for loading state
+  const loadingContainerStyle = useMemo(() => 
+    [styles.container, { justifyContent: 'center', alignItems: 'center' }],
+  []);
+
   // Show loading indicator while content is being fetched
   if (isLoading && movieRows.length === 0) {
     return (
-      <VisionContainer style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <VisionContainer style={loadingContainerStyle}>
         <ActivityIndicator size="large" color="#e50914" />
       </VisionContainer>
     );
@@ -274,13 +373,13 @@ export default function Page() {
         scrollDirection={scrollDirection}
       />
 
-      <Animated.ScrollView
+      <RNAnimated.ScrollView
         ref={scrollViewRef}
         style={[
           styles.scrollView,
           isVisionOS && { paddingHorizontal: 20 }
         ]}
-        onScroll={scrollHandler}
+        onScroll={scrollEventHandler}
         scrollEventThrottle={16}
         contentContainerStyle={[
           styles.scrollViewContent, 
@@ -288,37 +387,30 @@ export default function Page() {
         ]}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        removeClippedSubviews={true}
+        overScrollMode="never"
       >
         <LinearGradient
-          colors={['#202036', '#11111d', '#07070c']}
-          locations={[0, 0.4, 0.8]}
+          colors={gradientColors}
+          locations={gradientLocations}
           style={[styles.gradient, { height: SCREEN_HEIGHT * 0.8 }]}
         />
 
         <FeaturedContent
-          {...{
-            movie: featuredMovie,
-            imageStyle,
-            categoriesStyle,
-            buttonsStyle,
-            topMargin: insets.top + 90
-          } as TempFeaturedContentProps}
+          {...featuredContentProps as TempFeaturedContentProps}
         />
 
         <View style={{ marginTop: 5 }}>
           {movieRows.length > 0 ? (
-            movieRows.map((row) => (
+            // Only render visible rows
+            movieRows.slice(0, visibleRowCount).map((row) => (
               <HomeScreen key={row.rowTitle} {...row} />
             ))
           ) : (
-            <View style={localStyles.emptyState}>
-              <Text style={localStyles.emptyStateText}>
-                No content available. Enable catalogs in the Addons tab.
-              </Text>
-            </View>
+            <EmptyState />
           )}
         </View>
-      </Animated.ScrollView>
+      </RNAnimated.ScrollView>
     </VisionContainer>
   );
 }
