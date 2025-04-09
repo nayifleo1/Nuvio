@@ -322,8 +322,8 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
     const { preferredPlayer } = useUser();
     const isAndroid = Platform.OS === 'android';
     const insets = useSafeAreaInsets();
-    const router = useRouter(); // Initialize router
-    const videoRef = useRef<Video | null>(null);
+    const router = useRouter();
+    const videoRef = useRef<Video | null>(null); // Keep videoRef if needed elsewhere, otherwise remove
     const [isMuted, setIsMuted] = useState(true);
     const progress = useSharedValue(0);
     const min = useSharedValue(0);
@@ -357,9 +357,6 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
     });
     
     const [videoQuality, setVideoQuality] = useState<string>('VISION');
-    
-    // Status bar handling for Android
-    const statusBarHeight = Platform.OS === 'android' ? NativeStatusBar.currentHeight || 0 : 0;
     
     // Configure the scroll component
     const ScrollComponentToUse = React.useMemo(() => {
@@ -1455,45 +1452,73 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
         );
     };
 
-    // Set appropriate status bar for Android
-    useEffect(() => {
-        if (Platform.OS === 'android') {
-            // For Android, manage the status bar explicitly
-            NativeStatusBar.setBackgroundColor('transparent');
-            NativeStatusBar.setTranslucent(true);
-            return () => {
-                // Reset when component unmounts
-                NativeStatusBar.setBackgroundColor('#000');
-                NativeStatusBar.setTranslucent(false);
-            };
+    // Simplified onClose handler
+    const handleClose = () => {
+        console.log("handleClose called");
+        if (onClose) {
+            onClose(); // Signal the parent to close
         }
-    }, []);
-
-    // Set initial video quality based on movie data
-    useEffect(() => {
-        // Default to HD for most content
-        const defaultQuality = movie.quality || 'HD';
-        setVideoQuality(defaultQuality);
-    }, [movie]);
+    };
 
     // Handle Android back button
     useEffect(() => {
         if (Platform.OS === 'android') {
-            const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+            const backAction = () => {
                 if (showStreamingModal) {
+                    console.log("Back button: Closing streaming modal");
                     setShowStreamingModal(false);
-                    return true;
+                    return true; // We handled the back press
                 }
+                // If modal isn't open, signal the parent to close
+                console.log("Back button: Signaling parent to close player");
                 if (onClose) {
                     onClose();
-                    return true;
+                    return true; // We handled the back press by signaling parent
                 }
-                return false;
-            });
-            
+                return false; // Let default system behavior happen
+            };
+
+            const backHandler = BackHandler.addEventListener(
+                'hardwareBackPress',
+                backAction
+            );
+
             return () => backHandler.remove();
         }
-    }, [onClose, showStreamingModal]);
+    }, [showStreamingModal, onClose, isAndroid]); // Depend on modal state and onClose prop
+
+    // Centralized setup and cleanup effect
+    useEffect(() => {
+        // Setup on mount - REMOVED STATUS BAR MANIPULATION
+        // if (isAndroid) {
+        //     console.log("ExpandedPlayer Mounted: Setting Android status bar");
+        //     NativeStatusBar.setBackgroundColor('transparent');
+        //     NativeStatusBar.setTranslucent(true);
+        // }
+
+        // Cleanup on unmount
+        return () => {
+            console.log("ExpandedPlayer Unmounting: Running cleanup...");
+            // Reset Android status bar - REMOVED STATUS BAR MANIPULATION
+            // if (isAndroid) {
+            //     console.log("... Resetting Android status bar");
+            //     NativeStatusBar.setBackgroundColor('#000');
+            //     NativeStatusBar.setTranslucent(false);
+            // }
+
+            // Clean up stateful data
+            console.log("... Clearing states (modal, trailer, streams, etc.)");
+            setShowStreamingModal(false);
+            setTrailerKey(null); // Ensure WebView stops loading/playing
+            setStreamingLinks({});
+            setLoadingStreams(false);
+            setStreamError(null);
+            setEpisodes([]);
+            setSimilarContent([]);
+            // Add any other state resets here if necessary
+            console.log("ExpandedPlayer Cleanup Finished.");
+        };
+    }, [isAndroid]); // Dependency remains to potentially gate other platform-specific cleanup
 
     // Use View instead of BlurView on Android to fix touch issues
     const ContainerComponent = isAndroid ? View : BlurView;
@@ -1514,24 +1539,27 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
                 isAndroid && {
                     height: Dimensions.get('window').height,
                     width: Dimensions.get('window').width,
+                    backgroundColor: '#000' // Keep background for consistency
                 }
             ]}
         >
-            <StatusBar style="light" />
+            {/* REMOVED the manual Status Bar component from here, assuming parent manages it */}
+            {/* <StatusBar style="light" /> */}
             {isAndroid && (
-                <View 
+                // Status bar overlay view - KEPT for now to see if it's involved
+                <View
                     style={{
                         position: 'absolute',
                         top: 0,
                         left: 0,
                         right: 0,
-                        height: 24, // Match status bar height
-                        backgroundColor: '#000000', // Solid black for status bar area
-                        zIndex: 10 // Higher than other elements
+                        height: NativeStatusBar.currentHeight || 0,
+                        backgroundColor: '#00000080', // Semi-transparent black
+                        zIndex: 10
                     }}
                 />
             )}
-            
+
             <ScrollComponentToUse
                 contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
                 keyboardShouldPersistTaps="handled"
@@ -1576,7 +1604,7 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
                     <View style={styles.videoOverlay}>
                         <Pressable
                             style={styles.closeButton}
-                            onPress={onClose}
+                            onPress={handleClose} // Use simplified handler
                             android_ripple={{ color: '#ffffff33', borderless: true }}
                             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                             accessibilityRole="button"
