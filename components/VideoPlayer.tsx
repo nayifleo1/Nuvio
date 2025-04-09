@@ -5,14 +5,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { Slider } from 'react-native-awesome-slider';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSharedValue, runOnJS } from 'react-native-reanimated';
+// Import Gesture Handler components
+import { PinchGestureHandler, State, PinchGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 
-// Define the TrackPreferenceType for audio tracks
+// Define the TrackPreferenceType for audio/text tracks
 type TrackPreferenceType = 'system' | 'disabled' | 'title' | 'language' | 'index';
 
-// Define the SelectedTrack type for audio tracks
+// Define the SelectedTrack type for audio/text tracks
 interface SelectedTrack {
   type: TrackPreferenceType;
-  value: string | number;
+  value?: string | number; // value is optional for 'system' and 'disabled'
 }
 
 interface VideoPlayerProps {
@@ -30,6 +32,18 @@ interface AudioTrack {
   selected?: boolean;
 }
 
+// Define TextTrack interface based on react-native-video expected structure
+interface TextTrack {
+  index: number;
+  title?: string;
+  language?: string;
+  type?: string | null; // Adjusting type based on linter error
+}
+
+// Define the possible resize modes
+type ResizeModeType = 'contain' | 'cover' | 'stretch' | 'none';
+const resizeModes: ResizeModeType[] = ['contain', 'cover', 'stretch'];
+
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }) => {
   const [paused, setPaused] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -39,14 +53,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<number | null>(null);
   const [showAudioMenu, setShowAudioMenu] = useState(false);
+  const [textTracks, setTextTracks] = useState<TextTrack[]>([]);
+  const [selectedTextTrack, setSelectedTextTrack] = useState<SelectedTrack | null>({ type: 'disabled' }); // Default subtitles off
+  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+  const [resizeMode, setResizeMode] = useState<ResizeModeType>('contain'); // State for resize mode
   const videoRef = useRef<any>(null);
-  
-  // Required for react-native-awesome-slider
   const progress = useSharedValue(0);
   const min = useSharedValue(0);
   const max = useSharedValue(duration);
 
-  // Update max value when duration changes
   useEffect(() => {
     max.value = duration;
   }, [duration]);
@@ -90,30 +105,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
   };
 
   const onAudioTracks = (data: { audioTracks: AudioTrack[] }) => {
-    // console.log("Detected Audio Tracks:", data.audioTracks); // Keep commented for now
     setAudioTracks(data.audioTracks || []);
-    // Only set the initial track if it hasn't been set yet
     if (selectedAudioTrack === null && data.audioTracks && data.audioTracks.length > 0) {
-      // console.log("Setting initial audio track to index:", data.audioTracks[0].index);
       setSelectedAudioTrack(data.audioTracks[0].index);
     }
   };
 
-  const cycleAudioTrack = () => {
-    if (audioTracks.length <= 1) {
-      return;
-    }
-    setShowAudioMenu(true);
+  const onTextTracks = (e: Readonly<{ textTracks: TextTrack[] }>) => {
+    console.log("Detected Text Tracks:", e.textTracks);
+    setTextTracks(e.textTracks || []);
   };
 
-  // Log the prop value during render - REMOVED
-  // const audioTrackProp = selectedAudioTrack !== null ? 
-  //   { type: 'index', value: selectedAudioTrack } as any : 
-  //   undefined;
-  // console.log("Passing selectedAudioTrack prop:", audioTrackProp);
-
   return (
-    <View style={styles.container}>
+    <View style={styles.container}> 
       <TouchableOpacity
         style={styles.videoContainer}
         onPress={() => setShowControls(!showControls)}
@@ -124,7 +128,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
           source={{ uri }}
           style={styles.video}
           paused={paused}
-          resizeMode="contain"
+          resizeMode={resizeMode}
           onLoad={onLoad}
           onProgress={onProgress}
           rate={playbackSpeed}
@@ -134,12 +138,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
             undefined
           }
           onAudioTracks={onAudioTracks}
-          selectedTextTrack={selectedTextTrack as any}
-          onTextTracks={onTextTracks}
+          selectedTextTrack={selectedTextTrack as any} // Ensure this prop is passed
+          onTextTracks={onTextTracks} // Ensure this prop is passed
         />
 
+        {/* Controls Overlay */} 
         {showControls && (
           <View style={styles.controlsContainer}>
+            {/* Top Gradient & Header */}
             <LinearGradient
               colors={['rgba(0,0,0,0.7)', 'transparent']}
               style={styles.topGradient}
@@ -152,29 +158,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
               </View>
             </LinearGradient>
 
+            {/* Center Controls (Play/Pause, Skip) */}
             <View style={styles.controls}>
               <TouchableOpacity onPress={() => skip(-10)}>
                 <Ionicons name="play-back" size={24} color="white" />
               </TouchableOpacity>
-
               <TouchableOpacity onPress={togglePlayback} style={styles.playButton}>
-                <Ionicons
-                  name={paused ? "play" : "pause"}
-                  size={30}
-                  color="white"
-                />
+                <Ionicons name={paused ? "play" : "pause"} size={30} color="white" />
               </TouchableOpacity>
-
               <TouchableOpacity onPress={() => skip(10)}>
                 <Ionicons name="play-forward" size={24} color="white" />
               </TouchableOpacity>
             </View>
 
+            {/* Bottom Gradient & Controls */}
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.7)']}
               style={styles.bottomGradient}
             >
               <View style={styles.bottomControls}>
+                {/* Slider */}
                 <View style={styles.sliderContainer}>
                   <Slider
                     progress={progress}
@@ -193,12 +196,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
                   </Text>
                 </View>
 
+                {/* Bottom Buttons Row */}
                 <View style={styles.bottomButtons}>
+                  {/* Speed Button */}
                   <TouchableOpacity style={styles.bottomButton}>
                     <Ionicons name="speedometer" size={20} color="white" />
                     <Text style={styles.bottomButtonText}>Speed ({playbackSpeed}x)</Text>
                   </TouchableOpacity>
 
+                  {/* Audio Button */}
                   <TouchableOpacity 
                     style={styles.bottomButton} 
                     onPress={() => setShowAudioMenu(true)}
@@ -211,63 +217,128 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ uri, title = 'Episode Name' }
                         ''}
                     </Text>
                   </TouchableOpacity>
-
+                  
+                  {/* Lock Button */}
                   <TouchableOpacity style={styles.bottomButton}>
                     <Ionicons name="lock-closed" size={20} color="white" />
                     <Text style={styles.bottomButtonText}>Lock</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.bottomButton}>
-                    <Ionicons name="text" size={20} color="white" />
-                    <Text style={styles.bottomButtonText}>Subtitles</Text>
+                  {/* Subtitle Button */}
+                  <TouchableOpacity 
+                    style={styles.bottomButton}
+                    onPress={() => setShowSubtitleMenu(true)}
+                    disabled={textTracks.length === 0}
+                  >
+                    <Ionicons name="text" size={20} color={textTracks.length === 0 ? 'grey' : 'white'} />
+                    <Text style={[styles.bottomButtonText, textTracks.length === 0 && {color: 'grey'}]}>
+                      {selectedTextTrack?.type === 'disabled' 
+                        ? 'Subtitles (Off)' 
+                        : `Subtitles (${textTracks.find(t => t.index === selectedTextTrack?.value)?.language?.toUpperCase() || 'On'})`}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
             </LinearGradient>
           </View>
         )}
+      {/* Video TouchableOpacity ends here */}
+      </TouchableOpacity> 
 
-        {/* Audio Selection Modal */ 
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={showAudioMenu}
-          onRequestClose={() => {
-            setShowAudioMenu(false);
-          }}
+      {/* Audio Selection Modal */} 
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showAudioMenu}
+        onRequestClose={() => setShowAudioMenu(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setShowAudioMenu(false)}
         >
-          <Pressable 
-            style={styles.modalOverlay} 
-            onPress={() => setShowAudioMenu(false)} // Close on backdrop press
-          >
-            <View style={styles.audioMenuContainer} onStartShouldSetResponder={() => true} /* Prevents backdrop press when pressing menu */>
-              <Text style={styles.audioMenuTitle}>Select Audio Track</Text>
-              {audioTracks.map((track) => (
-                <TouchableOpacity
-                  key={track.index}
-                  style={styles.audioMenuItem}
-                  onPress={() => {
-                    setSelectedAudioTrack(track.index);
-                    setShowAudioMenu(false);
-                  }}
-                >
-                  <Ionicons 
-                    name={selectedAudioTrack === track.index ? "radio-button-on" : "radio-button-off"}
-                    size={18}
-                    color="white"
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text style={styles.audioMenuItemText}>
-                    {track.language ? track.language.toUpperCase() : (track.title || `Track ${track.index + 1}`)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </Pressable>
-        </Modal>
+          <View style={styles.audioMenuContainer} onStartShouldSetResponder={() => true}>
+            <Text style={styles.audioMenuTitle}>Select Audio Track</Text>
+            {audioTracks.map((track) => (
+              <TouchableOpacity
+                key={track.index}
+                style={styles.audioMenuItem}
+                onPress={() => {
+                  setSelectedAudioTrack(track.index);
+                  setShowAudioMenu(false);
+                }}
+              >
+                <Ionicons 
+                  name={selectedAudioTrack === track.index ? "radio-button-on" : "radio-button-off"}
+                  size={18}
+                  color="white"
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.audioMenuItemText}>
+                  {track.language ? track.language.toUpperCase() : (track.title || `Track ${track.index + 1}`)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
 
-      </TouchableOpacity>
-    </View>
+      {/* Subtitle Selection Modal */} 
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showSubtitleMenu}
+        onRequestClose={() => setShowSubtitleMenu(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setShowSubtitleMenu(false)}
+        >
+          <View style={styles.subtitleMenuContainer} onStartShouldSetResponder={() => true}>
+            <Text style={styles.subtitleMenuTitle}>Select Subtitles</Text>
+            {/* Off Option */}
+            <TouchableOpacity
+              style={styles.subtitleMenuItem}
+              onPress={() => {
+                setSelectedTextTrack({ type: 'disabled' });
+                setShowSubtitleMenu(false);
+              }}
+            >
+              <Ionicons 
+                name={selectedTextTrack?.type === 'disabled' ? "radio-button-on" : "radio-button-off"}
+                size={18}
+                color="white"
+                style={{ marginRight: 10 }}
+              />
+              <Text style={styles.subtitleMenuItemText}>Off</Text>
+            </TouchableOpacity>
+
+            {/* Available Tracks */}
+            {textTracks.map((track) => (
+              <TouchableOpacity
+                key={track.index}
+                style={styles.subtitleMenuItem}
+                onPress={() => {
+                  setSelectedTextTrack({ type: 'index', value: track.index });
+                  setShowSubtitleMenu(false);
+                }}
+              >
+                <Ionicons 
+                  name={selectedTextTrack?.type === 'index' && selectedTextTrack?.value === track.index ? "radio-button-on" : "radio-button-off"}
+                  size={18}
+                  color="white"
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.subtitleMenuItemText}>
+                  {track.language ? track.language.toUpperCase() : (track.title || `Track ${track.index + 1}`)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+      
+    {/* Root View container ends here */}
+    </View> 
   );
 };
 
@@ -354,38 +425,65 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Semi-transparent backdrop
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', 
   },
-  audioMenuContainer: {
-    backgroundColor: 'rgba(30, 30, 30, 0.9)', // Dark semi-transparent background for the menu
+  audioMenuContainer: { 
+    backgroundColor: 'rgba(30, 30, 30, 0.9)',
     borderRadius: 10,
     padding: 20,
     minWidth: 250,
     maxWidth: '80%',
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5
   },
-  audioMenuTitle: {
+  audioMenuTitle: { 
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 15,
     textAlign: 'center',
   },
-  audioMenuItem: {
+  audioMenuItem: { 
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  audioMenuItemText: {
+  audioMenuItemText: { 
+    color: 'white',
+    fontSize: 14,
+  },
+  subtitleMenuContainer: { 
+    backgroundColor: 'rgba(30, 30, 30, 0.9)',
+    borderRadius: 10,
+    padding: 20,
+    minWidth: 250,
+    maxWidth: '80%',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5
+  },
+  subtitleMenuTitle: { 
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  subtitleMenuItem: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  subtitleMenuItemText: { 
     color: 'white',
     fontSize: 14,
   },
