@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Dimensions, ActivityIndicator, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -88,6 +88,7 @@ export default function Page() {
   const [featuredMovie, setFeaturedMovie] = useState<FeaturedMovie>(FALLBACK_FEATURED_MOVIE);
   const [isLoading, setIsLoading] = useState(true);
   const [movieRows, setMovieRows] = useState<MovieRow[]>([]);
+  const scrollViewRef = useRef<Animated.ScrollView>(null);
 
   // Fetch featured content from Cinemeta
   useEffect(() => {
@@ -254,8 +255,6 @@ export default function Page() {
       { translateY: tiltY.value * -0.45 },
     ],
   }));
-
-  const scrollViewRef = useRef(null);
 
   // Show loading indicator while content is being fetched
   if (isLoading && movieRows.length === 0) {
