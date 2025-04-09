@@ -1,7 +1,7 @@
 import React, { useRef, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Text, Image, FlatList, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useUser } from '@/contexts/UserContext';
+import { useUser, SavedContent } from '@/contexts/UserContext';
 import { usePathname, useRouter } from 'expo-router';
 import { TAB_SCREENS } from '@/app/(tabs)/_layout';
 import { TabScreenWrapper } from '@/components/TabScreenWrapper';
@@ -38,7 +38,7 @@ const exampleMyList: MyListItem[] = [
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
 export default function ProfileScreen() {
-    const { selectedProfile } = useUser();
+    const { selectedProfile, likedContent, myList } = useUser();
     const pathname = usePathname();
     const isActive = pathname === '/profile';
     const router = useRouter();
@@ -77,9 +77,9 @@ export default function ProfileScreen() {
         <View style={styles.likedContent}>
             <FlatList
                 horizontal
-                data={exampleLikedShowsAndMovies}
+                data={likedContent}
                 keyExtractor={item => item.id.toString()}
-                renderItem={useCallback(({ item }: { item: LikedItem }) => (
+                renderItem={useCallback(({ item }: { item: SavedContent }) => (
                     <View style={styles.likedItemContainer}>
                         <Image
                             source={{ uri: item.imageUrl }}
@@ -91,6 +91,11 @@ export default function ProfileScreen() {
                 maxToRenderPerBatch={5}
                 windowSize={3}
                 removeClippedSubviews={true}
+                ListEmptyComponent={() => (
+                    <View style={styles.emptyStateContainer}>
+                        <Text style={styles.emptyStateText}>No liked content yet</Text>
+                    </View>
+                )}
             />
         </View>
     );
@@ -98,9 +103,9 @@ export default function ProfileScreen() {
     const renderMyList = () => (
         <FlatList
             horizontal
-            data={exampleMyList}
+            data={myList}
             keyExtractor={item => item.id.toString()}
-            renderItem={useCallback(({ item }: { item: MyListItem }) => (
+            renderItem={useCallback(({ item }: { item: SavedContent }) => (
                 <Image
                     style={styles.myListImage}
                     source={{ uri: item.imageUrl }}
@@ -111,6 +116,11 @@ export default function ProfileScreen() {
             maxToRenderPerBatch={5}
             windowSize={3}
             removeClippedSubviews={true}
+            ListEmptyComponent={() => (
+                <View style={styles.emptyStateContainer}>
+                    <Text style={styles.emptyStateText}>Your list is empty</Text>
+                </View>
+            )}
         />
     );
 
@@ -432,5 +442,14 @@ const styles = StyleSheet.create({
     },
     scrollView: {
         flex: 1,
+    },
+    emptyStateContainer: {
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyStateText: {
+        color: '#666',
+        fontSize: 14,
     },
 }); 

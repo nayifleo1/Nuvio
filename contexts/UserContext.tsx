@@ -10,12 +10,29 @@ export interface Profile {
     avatar: string;
 }
 
+export interface SavedContent {
+    id: number;
+    title: string;
+    imageUrl: string;
+    mediaType: 'movie' | 'tv';
+    tmdbId: number;
+    addedAt: string;
+}
+
 interface UserContextType {
     profiles: Profile[];
     selectedProfile: Profile | null;
     selectProfile: (profileId: string) => void;
     preferredPlayer: ExternalPlayerType;
     setPreferredPlayer: (player: ExternalPlayerType) => Promise<void>;
+    likedContent: SavedContent[];
+    myList: SavedContent[];
+    addToLiked: (content: Omit<SavedContent, 'addedAt'>) => Promise<void>;
+    removeFromLiked: (id: number) => Promise<void>;
+    addToMyList: (content: Omit<SavedContent, 'addedAt'>) => Promise<void>;
+    removeFromMyList: (id: number) => Promise<void>;
+    isLiked: (id: number) => boolean;
+    isInMyList: (id: number) => boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -23,22 +40,61 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: React.ReactNode }) {
     const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
     const [preferredPlayer, setPreferredPlayerState] = useState<ExternalPlayerType>('internal');
+    const [likedContent, setLikedContent] = useState<SavedContent[]>([]);
+    const [myList, setMyList] = useState<SavedContent[]>([]);
 
-    // Load preferred player from storage when component mounts
+    // Load saved data when component mounts
     useEffect(() => {
-        const loadPreferredPlayer = async () => {
+        const loadSavedData = async () => {
             try {
-                const storedPlayer = await AsyncStorage.getItem('preferredPlayer');
+                const [storedPlayer, storedLiked, storedMyList] = await Promise.all([
+                    AsyncStorage.getItem('preferredPlayer'),
+                    AsyncStorage.getItem('likedContent'),
+                    AsyncStorage.getItem('myList')
+                ]);
+
                 if (storedPlayer) {
                     setPreferredPlayerState(storedPlayer as ExternalPlayerType);
                 }
+                if (storedLiked) {
+                    setLikedContent(JSON.parse(storedLiked));
+                }
+                if (storedMyList) {
+                    setMyList(JSON.parse(storedMyList));
+                }
             } catch (error) {
-                console.error('Failed to load preferred player:', error);
+                console.error('Failed to load saved data:', error);
             }
         };
         
-        loadPreferredPlayer();
+        loadSavedData();
     }, []);
+
+    // Save liked content to AsyncStorage whenever it changes
+    useEffect(() => {
+        const saveLikedContent = async () => {
+            try {
+                await AsyncStorage.setItem('likedContent', JSON.stringify(likedContent));
+            } catch (error) {
+                console.error('Failed to save liked content:', error);
+            }
+        };
+        
+        saveLikedContent();
+    }, [likedContent]);
+
+    // Save my list to AsyncStorage whenever it changes
+    useEffect(() => {
+        const saveMyList = async () => {
+            try {
+                await AsyncStorage.setItem('myList', JSON.stringify(myList));
+            } catch (error) {
+                console.error('Failed to save my list:', error);
+            }
+        };
+        
+        saveMyList();
+    }, [myList]);
 
     const selectProfile = useCallback((profileId: string) => {
         const profile = profilesData.profiles.find(p => p.id === profileId);
@@ -56,13 +112,64 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
+    const addToLiked = useCallback(async (content: Omit<SavedContent, 'addedAt'>) => {
+        setLikedContent(prev => {
+            if (prev.some(item => item.id === content.id)) return prev;
+            return [...prev, { ...content, addedAt: new Date().toISOString() }];
+        });
+    }, []);
+
+    const removeFromLiked = useCallback(async (id: number) => {
+        setLikedContent(prev => prev.filter(item => item.id !== id));
+    }, []);
+
+    const addToMyList = useCallback(async (content: Omit<SavedContent, 'addedAt'>) => {
+        setMyList(prev => {
+            if (prev.some(item => item.id === content.id)) return prev;
+            return [...prev, { ...content, addedAt: new Date().toISOString() }];
+        });
+    }, []);
+
+    const removeFromMyList = useCallback(async (id: number) => {
+        setMyList(prev => prev.filter(item => item.id !== id));
+    }, []);
+
+    const isLiked = useCallback((id: number) => {
+        return likedContent.some(item => item.id === id);
+    }, [likedContent]);
+
+    const isInMyList = useCallback((id: number) => {
+        return myList.some(item => item.id === id);
+    }, [myList]);
+
     const value = useMemo(() => ({
         profiles: profilesData.profiles,
         selectedProfile,
         selectProfile,
         preferredPlayer,
-        setPreferredPlayer
-    }), [selectedProfile, selectProfile, preferredPlayer, setPreferredPlayer]);
+        setPreferredPlayer,
+        likedContent,
+        myList,
+        addToLiked,
+        removeFromLiked,
+        addToMyList,
+        removeFromMyList,
+        isLiked,
+        isInMyList
+    }), [
+        selectedProfile, 
+        selectProfile, 
+        preferredPlayer, 
+        setPreferredPlayer,
+        likedContent,
+        myList,
+        addToLiked,
+        removeFromLiked,
+        addToMyList,
+        removeFromMyList,
+        isLiked,
+        isInMyList
+    ]);
 
     return (
         <UserContext.Provider value={value}>

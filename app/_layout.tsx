@@ -5,7 +5,7 @@ import {useEffect, useState} from 'react';
 import {StyleSheet, useColorScheme, View, Platform} from 'react-native';
 import {RootScaleProvider} from '@/contexts/RootScaleContext';
 import {useRootScale} from '@/contexts/RootScaleContext';
-import Animated, {useAnimatedStyle} from 'react-native-reanimated';
+import Animated, {useAnimatedStyle, withSpring} from 'react-native-reanimated';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {OverlayProvider} from '@/components/Overlay/OverlayProvider';
 import {useRouter} from 'expo-router';
@@ -16,6 +16,7 @@ import {useUser} from '@/contexts/UserContext';
 import {Image} from 'expo-image';
 import useCachedResources from '@/hooks/useCachedResources';
 import { useVisionOS } from '@/hooks/useVisionOS';
+import { colors } from '@/styles/colors';
 
 function AnimatedStack() {
     const {scale} = useRootScale();
@@ -162,6 +163,16 @@ function AnimatedStack() {
                             headerShown: false,
                             contentStyle: {
                                 backgroundColor: 'transparent',
+                            },
+                        }}
+                    />
+
+                    <Stack.Screen
+                        name="show-ratings"
+                        options={{
+                            headerShown: false,
+                            contentStyle: {
+                                backgroundColor: colors.black,
                             },
                         }}
                     />

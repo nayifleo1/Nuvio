@@ -319,8 +319,20 @@ const EpisodeItem = ({
     );
 };
 
+// Helper function to convert movie ID to number
+const getNumericId = (id: string | number): number => {
+    if (typeof id === 'number') return id;
+    const numId = parseInt(id, 10);
+    return isNaN(numId) ? 0 : numId;
+};
+
+// Helper function to convert series type to tv
+const getMediaType = (type?: 'movie' | 'series'): 'movie' | 'tv' => {
+    return type === 'series' ? 'tv' : 'movie';
+};
+
 export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlayerProps) {
-    const { preferredPlayer } = useUser();
+    const { preferredPlayer, addToMyList, removeFromMyList, addToLiked, removeFromLiked, isLiked, isInMyList } = useUser();
     const isAndroid = Platform.OS === 'android';
     const insets = useSafeAreaInsets();
     const router = useRouter();
@@ -906,11 +918,6 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
             setStreamingLinks({});
             
             let mediaType = movieData.type || 'movie';
-            
-            // Debug installed addons
-            const installedAddons = stremioService.getInstalledAddons();
-            console.log(`Found ${installedAddons.length} installed addons:`, 
-                installedAddons.map(addon => addon.id));
             
             // Determine the best ID to use for fetching streams
             let hasImdbId = typeof movieData.id === 'string' && movieData.id.includes('tt');
@@ -1768,18 +1775,85 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
                     </View>
 
                     <View style={styles.actionButtons}>
-                        <Pressable style={[styles.actionButton, {
-                            width: Platform.OS === 'android' ? 80 : 100,
-                            borderBottomWidth: 4,
-                            borderBottomColor: '#db0000',
-                        }]}>
-                            <Ionicons name="add" size={Platform.OS === 'android' ? 20 : 24} color="white" />
+                        <Pressable 
+                            style={[styles.actionButton, 
+                                isInMyList(getNumericId(movie.id)) && {
+                                    width: Platform.OS === 'android' ? 80 : 100,
+                                    borderBottomWidth: 4,
+                                    borderBottomColor: '#db0000',
+                                }
+                            ]}
+                            onPress={() => {
+                                const numericId = getNumericId(movie.id);
+                                if (isInMyList(numericId)) {
+                                    removeFromMyList(numericId);
+                                } else {
+                                    addToMyList({
+                                        id: numericId,
+                                        title: movie.title,
+                                        imageUrl: movie.imageUrl,
+                                        mediaType: getMediaType(movie.type),
+                                        tmdbId: movie.tmdbId || 0
+                                    });
+                                }
+                            }}
+                        >
+                            <View style={{ width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+                                <Ionicons 
+                                    name={isInMyList(getNumericId(movie.id)) ? "checkmark" : "add"} 
+                                    size={24}
+                                    color="white" 
+                                />
+                            </View>
                             <ThemedText style={styles.actionButtonText}>My List</ThemedText>
                         </Pressable>
-                        <Pressable style={styles.actionButton}>
-                            <Ionicons name="thumbs-up-outline" size={Platform.OS === 'android' ? 20 : 24} color="white" />
-                            <ThemedText style={styles.actionButtonText}>Rate</ThemedText>
+                        <Pressable 
+                            style={[styles.actionButton,
+                                isLiked(getNumericId(movie.id)) && {
+                                    borderBottomWidth: 4,
+                                    borderBottomColor: '#db0000',
+                                }
+                            ]}
+                            onPress={() => {
+                                const numericId = getNumericId(movie.id);
+                                if (isLiked(numericId)) {
+                                    removeFromLiked(numericId);
+                                } else {
+                                    addToLiked({
+                                        id: numericId,
+                                        title: movie.title,
+                                        imageUrl: movie.imageUrl,
+                                        mediaType: getMediaType(movie.type),
+                                        tmdbId: movie.tmdbId || 0
+                                    });
+                                }
+                            }}
+                        >
+                            <Ionicons 
+                                name={isLiked(getNumericId(movie.id)) ? "thumbs-up" : "thumbs-up-outline"} 
+                                size={24}
+                                color="white" 
+                            />
+                            <ThemedText style={styles.actionButtonText}>Like</ThemedText>
                         </Pressable>
+                        {movieData.type === 'series' && movieData.tmdbId && (
+                            <Pressable 
+                                style={styles.actionButton}
+                                onPress={() => {
+                                    router.push({
+                                        pathname: '/show-ratings' as const,
+                                        params: { showId: movieData.tmdbId }
+                                    });
+                                }}
+                            >
+                                <MaterialIcons 
+                                    name="star-rate" 
+                                    size={24}
+                                    color="white" 
+                                />
+                                <ThemedText style={styles.actionButtonText}>Ratings</ThemedText>
+                            </Pressable>
+                        )}
                         <Pressable style={styles.actionButton}>
                             <Ionicons name="send-outline" size={Platform.OS === 'android' ? 18 : 20} color="white" style={{
                                 marginBottom: Platform.OS === 'android' ? 2 : 4,
