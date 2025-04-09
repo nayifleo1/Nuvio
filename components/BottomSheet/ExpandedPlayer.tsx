@@ -1058,13 +1058,11 @@ export function ExpandedPlayer({ scrollComponent, movie, onClose }: ExpandedPlay
     
     // Helper function to navigate to the built-in player
     const navigateToPlayer = (stream: Stream) => {
-        const isTorrent = stream.url?.startsWith('magnet:');
         router.push({
             pathname: `/player/[url]` as any,
             params: { 
                 url: encodeURIComponent(stream.url),
-                title: encodeURIComponent(movieData.title),
-                isTorrent: isTorrent ? '1' : '0'
+                title: encodeURIComponent(movieData.title)
             }
         });
     };
